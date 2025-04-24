@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 type Span = [number, number]; // Tuple of two integers
 type Box2D = [number, number, number, number]; // Tuple of four floats
 
-const SETTING_PATH = "/home/creux/Documents/AI/VIFagent/resources/plane/"
+const SETTING_PATH = "/home/creux/Documents/AI/VIFagent/resources/chimpanzee/"
 
 interface CodeImageMapping {
 	spans: Span[];
