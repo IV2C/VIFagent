@@ -1,9 +1,12 @@
 LICENSE
 README.md
 pyproject.toml
-tests/test_comment.py
+tests/test_create_mapping.py
+tests/test_mapping.py
+tests/test_random.py
 vif_agent/__init__.py
 vif_agent/agent.py
+vif_agent/feature.py
 vif_agent/prompt.py
 vif_agent/utils.py
 vif_agent.egg-info/PKG-INFO
