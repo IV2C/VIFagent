@@ -22,7 +22,7 @@ dependencies = [
   "pdf2image>=1.17.0",
   "Pillow>=11.1.0",
   "pydantic>=2.11.1",
-  "transformers>=4.46.0"
+  "sentence-transformers>=0.3.0"
 ]
 
 [tool.setuptools]
