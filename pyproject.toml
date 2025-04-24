@@ -24,6 +24,8 @@ dependencies = [
   "pydantic>=2.11.1",
 ]
 
+[tool.setuptools]
+packages = ["vif_agent"]
 #[project.urls]
 #Homepage = "https://github.com/pypa/sampleproject"
 #Issues = "https://github.com/pypa/sampleproject/issues"
