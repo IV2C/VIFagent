@@ -4,16 +4,22 @@ from PIL import Image
 from sentence_transformers import SentenceTransformer
 import torch
 
+
 type Box2D = tuple[float, float, float, float]
 type Span = tuple[int, int]
 
-
+@dataclass
+class CodeEdit:
+    start: int
+    end: int
+    content: str
 @dataclass
 class CodeImageMapping:
     """code to image mapping"""
 
     spans: list[Span]
-    zone: Box2D
+    box_zone: Box2D
+    segment_zone: Image.Image | None = None
 
 
 class MappedCode:
@@ -21,17 +27,20 @@ class MappedCode:
         self,
         image: Image.Image,
         code: str,
-        feature_map: dict[str, list[tuple[CodeImageMapping, float]]],
-        embedding_model: SentenceTransformer,
+        feature_map: dict[str, list[tuple[CodeImageMapping, float]]] = None,
     ):
         self.image = image
         self.code = code
         self.feature_map = feature_map
-        self.embedding_model = embedding_model
 
-        self.key_embeddings = embedding_model.encode(list(self.feature_map.keys()))
+        if feature_map is not None:
+            self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+            self.key_embeddings = self.embedding_model.encode(list(self.feature_map.keys()))
 
     def get_commented(self, comment_character: str = "%") -> str:
+        if self.feature_map is None:
+            return self.code
+        
         char_id_feature: dict = (
             {}
         )  # mapping between the character index and the detected feature
@@ -64,6 +73,41 @@ class MappedCode:
             )
         return annotated_code
 
+
+    def apply_edits(self,edits: list[CodeEdit]):
+        """applies edits to the code and updates the indexes in the feature map accordingly
+
+        Args:
+            edits (list[CodeEdit]): The list of edits to apply to the code
+        """
+        #Modifying code
+        splitted_code = self.code.split("\n")
+        for edit in edits:
+            #-1 because the codeedit specify lines which start at 1, and +1 for end because splice is [a,b[
+            splitted_code[edit.start-1,edit.end] =[]  
+            splitted_code[edit.start+1] =  edit.content
+        self.code = "\n".join(splitted_code)
+        
+        if self.feature_map is not None:
+            #updating features character indexes
+            for (_,mappings) in self.feature_map.items():
+                for (mapping,_) in mappings:
+                    for span in mapping.spans:
+                        for edit in edits:
+                            """TODO maybe not update? => 
+                            I mean its possible but we can't map new features added by the LLM unless we recompute everything,
+                            so best thing to do is to probably just remove from the spans the ones that the llm edits and adjust the other ones
+                            """ 
+                            pass
+
+
+    def get_annotated(self):
+        """Returns the code annotated with line numbers
+        """
+        #TODO
+        pass
+        
+
     def get_cimappings(self, feature: str) -> list[tuple[CodeImageMapping, float]]:
         """Gets a CodeImageMapping(parts of the code and the associated part of the image)
         from a string, i.e. given a string, computes which feature_names are the most similar,
@@ -75,6 +119,9 @@ class MappedCode:
         Returns:
             list[tuple[CodeImageMapping, float]]: Most probable part of the code/Image that the feature is in
         """
+        if self.feature_map is None:
+            return []
+        
         asked_feature_embedding = self.embedding_model.encode(feature)
         similarities: torch.Tensor = self.embedding_model.similarity(
             self.key_embeddings, asked_feature_embedding

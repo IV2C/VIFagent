@@ -15,5 +15,9 @@ vif_agent.egg-info/dependency_links.txt
 vif_agent.egg-info/requires.txt
 vif_agent.egg-info/top_level.txt
 vif_agent/models/detection.py
+vif_agent/mutation/__init__.py
+vif_agent/mutation/mutant.py
 vif_agent/mutation/tex_mutant_creator.py
+vif_agent/renderer/__init__.py
 vif_agent/renderer/tex_renderer.py
+vif_agent/script/get_mappings.py
