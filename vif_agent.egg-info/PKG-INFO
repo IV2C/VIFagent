@@ -15,6 +15,7 @@ Requires-Dist: openai>=1.70.0
 Requires-Dist: pdf2image>=1.17.0
 Requires-Dist: Pillow>=11.1.0
 Requires-Dist: pydantic>=2.11.1
+Requires-Dist: sentence-transformers>=0.3.0
 Dynamic: license-file
 
 # VIFagent

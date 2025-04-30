@@ -25,8 +25,9 @@ dependencies = [
   "sentence-transformers>=0.3.0"
 ]
 
-[tool.setuptools]
-packages = ["vif_agent"]
+
+[tool.setuptools.packages.find]
+include = ["vif_agent*"]
 #[project.urls]
 #Homepage = "https://github.com/pypa/sampleproject"
 #Issues = "https://github.com/pypa/sampleproject/issues"
