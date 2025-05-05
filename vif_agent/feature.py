@@ -140,7 +140,7 @@ class MappedCode:
         ):
             adjusted_mappings = []
             for mapping, prob in prob_mappings:
-                adjusted_mappings.append([mapping, prob * (similarity**10)])
+                adjusted_mappings.append([mapping, prob * (similarity.item()**10)])
 
             adjusted_map[feature_name] = adjusted_mappings
 
