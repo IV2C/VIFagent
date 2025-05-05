@@ -12,17 +12,16 @@ Given an instruction and an initial code, your job is to iteratively customize t
 
 ### Workflow  
 1. Call `render_code()` to inspect the initial output. Use this to interpret the instruction.  
-2. Use `get_feature_location()` to identify where in the code the relevant feature is likely located. Trust the output unless proven wrong.
+2. Use `get_feature_location()` one or multiple times to identify where in the code the relevant feature(d) id/are likely located. Trust the output unless proven wrong.
 3. Explicitely reason about the code and next edit to make.
 4. Iteratively:  
    a. Edit using `modify_code()` (guided by `get_feature_location`).  
    b. Re-render with `render_code()` to validate the effect.
    c. Wait for the tools' responses. 
-   d. Reason explicitly using reason():  
+   d. Reason explicitly:  
       - Is the instruction fulfilled?  
       - If not, what needs to change and where?
-   e. Back to step a.
-5. On successful customization, call `finish_customization()`.
+   e. On successful customization, call `finish_customization()`, otherwise keep iterating.
 
 ### Rules  
 - Never rewrite the whole code manually. Always apply edits via tools.  
