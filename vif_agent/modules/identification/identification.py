@@ -54,16 +54,16 @@ class LLMIdentificationModule(IdentificationModule):
     def __init__(
         self,
         *,
-        identification_model,
-        identification_client,
-        identification_model_temperature=0.3,
+        model,
+        client,
+        temperature=0.3,
         mutant_creator: TexMutantCreator = TexMappingMutantCreator(),
         debug=False,
         debug_folder=".tmp/debug",
     ):
-        self.identification_client = identification_client
-        self.identification_model = identification_model
-        self.identification_model_temperature = identification_model_temperature
+        self.identification_client = client
+        self.identification_model = model
+        self.identification_model_temperature = temperature
         super().__init__(mutant_creator, debug, debug_folder)
 
     def __str__(self):
@@ -84,18 +84,18 @@ class BoxIdentificationModule(LLMIdentificationModule):
     def __init__(
         self,
         *,
-        identification_client,
-        identification_model,
-        identification_model_temperature=0.3,
+        client,
+        model,
+        temperature=0.3,
         mutant_creator: TexMutantCreator = TexMappingMutantCreator(),
         debug=False,
         debug_folder=".tmp/debug",
     ):
         super().__init__(
             mutant_creator=mutant_creator,
-            identification_client=identification_client,
-            identification_model=identification_model,
-            identification_model_temperature=identification_model_temperature,
+            client=client,
+            model=model,
+            temperature=temperature,
             debug=debug,
             debug_folder=debug_folder,
         )

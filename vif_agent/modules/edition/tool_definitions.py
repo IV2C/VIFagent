@@ -32,7 +32,7 @@ modify_code_tool = {
     "type": "function",
     "function": {
         "name": "modify_code",
-        "description": "Apply a list of edits to the code. The tool get_code must be called before this tool every time to ensure the right range is provided.",
+        "description": "modify_code(edits: List[Edit]) → code: Applies a list of textual edits and returns the modified code annotated with line numbers (for reference only). Each Edit has a start and end line index and a content. The lines in the range [start, end) are replaced by content.If start == end, content is inserted at that position, If content is empty, the range [start, end) is deleted.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -48,14 +48,14 @@ modify_code_tool = {
                             },
                             "end": {
                                 "type": "integer",
-                                "description": "Line number of the end of the edit.",
+                                "description": "Line number of the end of the edit, not selected. ",
                             },
                             "content": {
                                 "type": "string",
                                 "description": "New content replacing the content in the [start:end] line range.",
                             },
                         },
-                        "required": ["start", "end", "content"],
+                        "required": ["start", "end"],
                     },
                 },
             },

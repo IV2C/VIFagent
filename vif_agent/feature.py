@@ -7,12 +7,16 @@ import torch
 
 type Box2D = tuple[float, float, float, float]
 type Span = tuple[int, int]
+import copy
+
 
 @dataclass
 class CodeEdit:
     start: int
     end: int
-    content: str
+    content: str = None
+
+
 @dataclass
 class CodeImageMapping:
     """code to image mapping"""
@@ -32,15 +36,18 @@ class MappedCode:
         self.image = image
         self.code = code
         self.feature_map = feature_map
+        self.original_code = code
 
         if feature_map is not None:
             self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-            self.key_embeddings = self.embedding_model.encode(list(self.feature_map.keys()))
+            self.key_embeddings = self.embedding_model.encode(
+                list(self.feature_map.keys())
+            )
 
     def get_commented(self, comment_character: str = "%") -> str:
         if self.feature_map is None:
-            return self.code
-        
+            return self.original_code
+
         char_id_feature: dict = (
             {}
         )  # mapping between the character index and the detected feature
@@ -55,7 +62,7 @@ class MappedCode:
                     features_for_char, key=lambda x: x[1], reverse=True
                 )  # order the labels by the mse
 
-        annotated_code = self.code
+        annotated_code = self.original_code
         # Annotate the code
         for characted_index, labels in sorted(char_id_feature.items(), reverse=True):
             labels = [label[0] for label in labels]  # removing the mse
@@ -73,40 +80,35 @@ class MappedCode:
             )
         return annotated_code
 
+    def apply_edits(self, edits: list[CodeEdit]):
+        """applies edits to the code
 
-    def apply_edits(self,edits: list[CodeEdit]):
-        """applies edits to the code and updates the indexes in the feature map accordingly
+        span adaptations not done for now, because the llm only asks for it once
 
         Args:
             edits (list[CodeEdit]): The list of edits to apply to the code
         """
-        #Modifying code
+
+        edits = sorted(edits, key=lambda a: a.start, reverse=True)
+
+        if any([edits[i].start < edits[i + 1].end for i in range(len(edits) - 1)]):
+            raise ValueError("Ranges are overlaping, cancelling edits.")
+
+        # Modifying code
         splitted_code = self.code.split("\n")
         for edit in edits:
-            #-1 because the codeedit specify lines which start at 1, and +1 for end because splice is [a,b[
-            splitted_code[edit.start-1,edit.end] =[]  
-            splitted_code[edit.start+1] =  edit.content
-        self.code = "\n".join(splitted_code)
-        
-        if self.feature_map is not None:
-            #updating features character indexes
-            for (_,mappings) in self.feature_map.items():
-                for (mapping,_) in mappings:
-                    for span in mapping.spans:
-                        for edit in edits:
-                            """TODO maybe not update? => 
-                            I mean its possible but we can't map new features added by the LLM unless we recompute everything,
-                            so best thing to do is to probably just remove from the spans the ones that the llm edits and adjust the other ones
-                            """ 
-                            pass
+            # -1 because the codeedit specify lines which start at 1, but not +1 for end even splice is [a,b[ because last index replaced
 
+            splitted_code[edit.start - 1 : edit.end - 1] = []
+            if edit.content is not None:
+                splitted_code.insert(edit.start - 1, edit.content)
+
+        self.code = "\n".join(splitted_code)
+        return self.code
 
     def get_annotated(self):
-        """Returns the code annotated with line numbers
-        """
-        #TODO
-        pass
-        
+        """Returns the code annotated with line numbers"""
+        return "\n".join([str(i + 1) + "|" + line for (i, line) in enumerate(self.code.split("\n"))])
 
     def get_cimappings(self, feature: str) -> list[tuple[CodeImageMapping, float]]:
         """Gets a CodeImageMapping(parts of the code and the associated part of the image)
@@ -121,7 +123,7 @@ class MappedCode:
         """
         if self.feature_map is None:
             return []
-        
+
         asked_feature_embedding = self.embedding_model.encode(feature)
         similarities: torch.Tensor = self.embedding_model.similarity(
             self.key_embeddings, asked_feature_embedding
@@ -131,20 +133,20 @@ class MappedCode:
         max_sim = similarities.max()
         similarities = (similarities - min_sim) / (max_sim - min_sim + 1e-8)
 
-        adjusted_map:dict[str, list[tuple[CodeImageMapping, float]]] = {}
+        adjusted_map: dict[str, list[tuple[CodeImageMapping, float]]] = {}
 
         for (feature_name, prob_mappings), similarity in zip(
             self.feature_map.items(), similarities
         ):
             adjusted_mappings = []
             for mapping, prob in prob_mappings:
-                adjusted_mappings.append([mapping,prob*(similarity**10)])
-                
+                adjusted_mappings.append([mapping, prob * (similarity**10)])
+
             adjusted_map[feature_name] = adjusted_mappings
 
         all_mappings: list[tuple[CodeImageMapping, float]] = []
-        
+
         for prob_map in adjusted_map.values():
-            all_mappings = all_mappings +  prob_map
+            all_mappings = all_mappings + prob_map
 
         return sorted(all_mappings, key=lambda x: x[1], reverse=True)
