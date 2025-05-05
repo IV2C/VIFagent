@@ -70,43 +70,43 @@ class VifAgent:
         self.mutant_creator = mutant_creator
 
     def apply_instruction(self, code: str, instruction: str):
+        """Applies the instruction to the code, using the settings
+
+        Args:
+            code (str): _description_
+            instruction (str): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        
         """DEBUG"""
         if self.debug:
             self.debug_id = str(uuid.uuid4())
             os.mkdir(os.path.join(self.debug_folder, self.debug_id))
         """"""
-        feature_map = self.identify_features(code)
-
         base_image = self.code_renderer(code)
-
-        user_instruction = IT_PROMPT.format(
-            instruction=instruction, content=code
-        )
-
-        if self.apply_clarification:
+        
+        if self.clarify_instruction:
             logger.info("clarifying the instruction")
             instruction = self.apply_clarification(instruction, base_image)
+        
+        
+        mapped_code = self.identify_features(code)
+
+
+
 
         logger.info("applying the instruction")
-        response = self.client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
-            messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT_GENERATION,
-                },
-                {"role": "user", "content": user_instruction},
-            ],
-        )
-        return response.choices[-1].message.content
+        response_code = self.edition_module.customize(mapped_code,instruction=instruction)
+        return response_code
 
     def apply_clarification(self, instruction: str, base_image: Image.Image):
         encoded_image = encode_image(image=base_image)
 
-        response = self.client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
+        response = self.edition_module.client.chat.completions.create(
+            model=self.edition_module.model,
+            temperature=self.edition_module.temperature,
             messages=[
                 {
                     "role": "system",

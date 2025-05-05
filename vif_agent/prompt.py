@@ -35,6 +35,7 @@ You will receive an image and a customization instruction.
 Your task is to rewrite the instruction as a clear, step-by-step guide focused only on the image.
 Clarify any vague parts, and describe precisely what changes should be made to the image.
 Do not include anything unrelated to the image. Respond only with the rewritten instruction in plain text.
+Do not over-interpret the original instruction.
 """
 
 

@@ -14,12 +14,12 @@ def test_comment():
     )
 
     identification_module = BoxIdentificationModule(
-        identification_client=OpenAI(
+        client=OpenAI(
             api_key=os.environ.get("GOOGLE_API_KEY"),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         ),
-        identification_model="gemini-2.0-flash",
-        identification_model_temperature=0.3,
+        model="gemini-2.0-flash",
+        temperature=0.3,
         debug=True
     )
 
