@@ -23,7 +23,12 @@ render_tool = {
     "function": {
         "name": "render_code",
         "description": "Renders the code and returns the image, useful to review the generated image from the code.",
-        "parameters": {},
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
         "strict": True,
     },
 }
@@ -32,7 +37,7 @@ modify_code_tool = {
     "type": "function",
     "function": {
         "name": "modify_code",
-        "description": "modify_code(edits: List[Edit]) → code: Applies a list of textual edits and returns the modified code annotated with line numbers (for reference only). Each Edit has a start and end line index and a content. The lines in the range [start, end) are replaced by content.If start == end, content is inserted at that position, If content is empty, the range [start, end) is deleted.",
+        "description": "modify_code(edits: List[Edit]) → code: Applies a list of textual edits and returns the modified code annotated with line numbers (for reference only). Each Edit has a start and end line index and a content. The lines in the range [start, end) are replaced by content.If start == end, content is inserted at that position, If content is an empty string, the range [start, end) is deleted.",
         "parameters": {
             "type": "object",
             "properties": {
@@ -55,11 +60,13 @@ modify_code_tool = {
                                 "description": "New content replacing the content in the [start:end] line range.",
                             },
                         },
-                        "required": ["start", "end"],
+                        "required": ["start", "end", "content"],
+                        "additionalProperties": False,
                     },
                 },
             },
             "required": ["edits"],
+            "additionalProperties": False,
         },
         "strict": True,
     },
@@ -70,7 +77,12 @@ finish_customization_tool = {
     "function": {
         "name": "finish_customization",
         "description": "Tool to call when the customization is finished, i.e. when a the customization achieves the instruction wanted by the user.",
-        "parameters": {},
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        },
         "strict": True,
     },
 }

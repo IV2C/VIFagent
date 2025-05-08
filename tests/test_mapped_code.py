@@ -53,7 +53,7 @@ class TestMappedCode(unittest.TestCase):
         """
         edited_code = mapped_code.apply_edits(edits)
         self.assertEqual(edited_code, expected_code)
-    
+
     def test_mappedcode_delete(self):
         # input
         code = """        dog
@@ -66,6 +66,32 @@ class TestMappedCode(unittest.TestCase):
 
         edits: list[CodeEdit] = [
             CodeEdit(2, 3),
+        ]
+
+        mapped_code = MappedCode(code=code, feature_map=None, image=None)
+
+        # expected
+        expected_code = """        dog
+        
+        foo
+        bar
+        foo
+        """
+        edited_code = mapped_code.apply_edits(edits)
+        self.assertEqual(edited_code, expected_code)
+
+    def test_mappedcode_delete_emptystring(self):
+        # input
+        code = """        dog
+        cat
+        
+        foo
+        bar
+        foo
+        """
+
+        edits: list[CodeEdit] = [
+            CodeEdit(2, 3,""),
         ]
 
         mapped_code = MappedCode(code=code, feature_map=None, image=None)
@@ -106,13 +132,11 @@ class TestMappedCode(unittest.TestCase):
         foo
         """
         edited_code = mapped_code.apply_edits(edits)
-        
+
         print(edited_code)
-        
-        
+
         self.assertEqual(edited_code, expected_code)
-        
-        
+
     def test_mappedcode_edit_overlap(self):
         # input
         code = """        dog
@@ -132,7 +156,6 @@ class TestMappedCode(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             mapped_code.apply_edits(edits)
-
 
     def test_mappedcode_annotated(self):
         # input

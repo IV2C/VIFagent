@@ -100,7 +100,7 @@ class MappedCode:
             # -1 because the codeedit specify lines which start at 1, but not +1 for end even splice is [a,b[ because last index replaced
 
             splitted_code[edit.start - 1 : edit.end - 1] = []
-            if edit.content is not None:
+            if edit.content is not None and not edit.content == "":
                 splitted_code.insert(edit.start - 1, edit.content)
 
         self.code = "\n".join(splitted_code)
@@ -140,7 +140,7 @@ class MappedCode:
         ):
             adjusted_mappings = []
             for mapping, prob in prob_mappings:
-                adjusted_mappings.append([mapping, prob * (similarity.item()**10)])
+                adjusted_mappings.append([mapping, prob.item() * (similarity.item()**10)])
 
             adjusted_map[feature_name] = adjusted_mappings
 
