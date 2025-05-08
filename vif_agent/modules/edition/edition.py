@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from openai import OpenAI
 
 from vif_agent.feature import CodeEdit, MappedCode
-from vif_agent.modules.edition.prompt import EDITION_SYSTEM_PROMPT
+from vif_agent.modules.edition.prompt import EDITION_SYSTEM_PROMPT, IT_PROMPT
 from vif_agent.modules.edition.tool_definitions import *
 import json
 from PIL import Image
@@ -46,6 +46,7 @@ class LLMEditionModule:
             "get_feature_location_errors": 0,
             "render_code_errors": 0,
             "modify_code_errors": 0,
+            "finish_customization_calls":0,
             "unknown_tool_calls": [],
         }
 
@@ -78,7 +79,7 @@ class LLMEditionModule:
         self.mapped_code = mapped_code
         messages = [
             {"role": "system", "content": EDITION_SYSTEM_PROMPT},
-            {"role": "user", "content": instruction},
+            {"role": "user", "content": IT_PROMPT.format(instruction=instruction,content=mapped_code.get_annotated())},
         ]
 
         completion = self.client.chat.completions.create(

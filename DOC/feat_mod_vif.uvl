@@ -1,0 +1,29 @@
+features
+    VIF
+        optional
+            Search
+                alternative
+                    LLMsearch
+            Identification
+                alternative
+                    Box
+                    Segment
+                    Clip
+        mandatory
+            Edition
+                alternative
+                    LLMagent
+                      mandatory
+                        tools
+                          mandatory
+                            edit_code
+                            finish_customization
+                          optional
+                            render_code
+                            get_feature_location
+                    Program
+constraints
+  get_feature_location => Identification
+  Identification => Search
+
+
