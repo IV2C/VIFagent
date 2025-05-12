@@ -54,7 +54,7 @@ class LLMEditionModule:
         mappings = self.mapped_code.get_cimappings(feature_name)
         return [
             ([self.mapped_code.code[span[0] : span[1]] for span in mapping.spans], prob)
-            for (mapping, prob) in mappings[:3]
+            for (mapping, prob) in mappings[:3]#only the 3 most probable
         ]
 
     def render_code(self) -> Image:
