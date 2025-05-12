@@ -10,11 +10,15 @@ Search -> LLMsearch [arrowhead="none", arrowtail="odot", dir="both"]
 Search [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="invhouse"]
 VIF -> Search [arrowhead="odot", arrowtail="none", dir="both"]
 Box [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="box"]
-Identification -> Box [arrowhead="none", arrowtail="odot", dir="both"]
+Full -> Box [arrowhead="none", arrowtail="odot", dir="both"]
 Segment [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="box"]
-Identification -> Segment [arrowhead="none", arrowtail="odot", dir="both"]
+Full -> Segment [arrowhead="none", arrowtail="odot", dir="both"]
 Clip [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="box"]
-Identification -> Clip [arrowhead="none", arrowtail="odot", dir="both"]
+Full -> Clip [arrowhead="none", arrowtail="odot", dir="both"]
+Full [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="invhouse"]
+Identification -> Full [arrowhead="none", arrowtail="odot", dir="both"]
+Oracle [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="box"]
+Identification -> Oracle [arrowhead="none", arrowtail="odot", dir="both"]
 Identification [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="invhouse"]
 VIF -> Identification [arrowhead="odot", arrowtail="none", dir="both"]
 edit_code [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="box"]
@@ -39,7 +43,8 @@ VIF [fillcolor="#ABACEA" tooltip="Cardinality: None" shape="box"]
 subgraph cluster_constraints{
     label="Constraints" color="white" fontcolor="white"
     constraints [shape="box" color="#1e1e1e" label=<<table border="0" cellpadding="0" cellspacing="0" cellborder="0">
-        <tr><td align="left">get_feature_location =&gt; Identification</td></tr>
+        <tr><td align="left">Program =&gt; Oracle</td></tr>
+    <tr><td align="left">get_feature_location =&gt; Identification</td></tr>
     <tr><td align="left">Identification =&gt; Search</td></tr>
 </table>>]
 }

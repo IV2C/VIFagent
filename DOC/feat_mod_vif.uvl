@@ -6,9 +6,12 @@ features
                     LLMsearch
             Identification
                 alternative
-                    Box
-                    Segment
-                    Clip
+                    Full
+                        alternative
+                            Box
+                            Segment
+                            Clip
+                    Oracle  
         mandatory
             Edition
                 alternative
@@ -23,7 +26,8 @@ features
                             get_feature_location
                     Program
 constraints
-  get_feature_location => Identification
-  Identification => Search
+    Program => Oracle
+    get_feature_location => Full
+    Identification => Search
 
 
