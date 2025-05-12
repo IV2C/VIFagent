@@ -5,8 +5,8 @@ features
                 alternative
                     LLMsearch
             Identification
-                alternative
-                    Full
+                or
+                    Mapper
                         alternative
                             Box
                             Segment
@@ -27,7 +27,7 @@ features
                     Program
 constraints
     Program => Oracle
-    get_feature_location => Full
+    get_feature_location => Mapper
     Identification => Search
 
 

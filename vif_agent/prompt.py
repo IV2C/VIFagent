@@ -1,7 +1,19 @@
-#labels must be a list
-DETECTION_PROMPT: str = """Detect, with no more than 20 items. Output a json list where each entry contains the 2D bounding box in "box_2d" and each of these labels:
-{labels} 
-in a field "label"."""
+SYSTEM_PROMPT_CLARIFY:str = """You are an interpretation agent.
+You will receive an image and a customization instruction.
+Your task is to rewrite the instruction as a clear, step-by-step guide focused only on the image.
+Clarify any vague parts, and describe precisely what changes should be made to the image.
+Do not include anything unrelated to the image. Respond only with the rewritten instruction in plain text.
+Do not over-interpret the original instruction.
+"""
+
+
+IT_PROMPT: str = """
+{instruction}
+```
+{content}
+```
+"""
+
 FEATURE_IDENTIFIER_PROMPT:str = """Give me a JSON describing the image
 The first field "description" contains a high-level description of the image.  
 The second field "features" contains a list of all the specific features  in the image.
@@ -25,23 +37,5 @@ Output format:
     ...
   ]
 }
-```
-"""
-
-
-
-SYSTEM_PROMPT_CLARIFY:str = """You are an interpretation agent.
-You will receive an image and a customization instruction.
-Your task is to rewrite the instruction as a clear, step-by-step guide focused only on the image.
-Clarify any vague parts, and describe precisely what changes should be made to the image.
-Do not include anything unrelated to the image. Respond only with the rewritten instruction in plain text.
-Do not over-interpret the original instruction.
-"""
-
-
-IT_PROMPT: str = """
-{instruction}
-```
-{content}
 ```
 """
