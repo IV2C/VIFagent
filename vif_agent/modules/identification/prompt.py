@@ -5,9 +5,12 @@ in a field "label"."""
 PINPOINT_PROMPT = """Among the following features:
 {features}
 
-Give me the ones that are the most probable of being edited by the instruction:
+Identify the ones most likely to be affected by the instruction:
 "{instruction}"
 
-Start with your usual reasoning or explanation as needed. Then, at the end of your response, output the keyword ANSWER: followed by your definitive answer and the next line, in the following parsable JSON array format (no extra text):
+Begin with reasoning as needed.
+Conclude with the keyword ANSWER: on a line by itself, followed by a parsable JSON array (no extra text), listing features sorted from most to least likely to be edited.
+
+Format the last two lines exactly like this:
 ANSWER:
 ["feature1", "feature2", ...]"""

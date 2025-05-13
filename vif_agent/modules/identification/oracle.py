@@ -3,7 +3,8 @@ from PIL import Image
 from collections.abc import Callable
 from openai import Client
 from vif_agent.modules.identification.prompt import PINPOINT_PROMPT
-from vif_agent.modules.identification.utils import get_boxes
+from vif_agent.modules.identification.utils import dsim_box, get_boxes
+import ast
 
 
 class IdentificationOracleBoxModule(IdentificationModule):
@@ -30,7 +31,7 @@ class IdentificationOracleBoxModule(IdentificationModule):
 
     def get_oracle(
         self, features: list[str], instruction: str, base_image: Image.Image
-    ) -> Callable[[Image.Image], bool]:
+    ) -> Callable[[Image.Image], tuple[list[tuple[str, float]], bool]]:
         feature_string = ",".join([f for f in features])
         pinpoint_instructions = PINPOINT_PROMPT.format(
             features=feature_string, instruction=instruction
@@ -39,15 +40,41 @@ class IdentificationOracleBoxModule(IdentificationModule):
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": pinpoint_instructions}],
         )
+        response = response.choices[0].message.content
+        features_to_edit = ast.literal_eval(response.split("ANSWER:")[1].strip())
 
         detected_boxes = get_boxes(
             base_image,
             self.identification_client,
+            features,
             self.identification_model,
             self.identification_model_temperature,
         )
-        #create the function that takes an image and returns the most edited box 
+        # create the function that takes an image and returns the most edited box
         # => refactor BoxIdentificationModule(mapping.py at line ~144 `for box in detected_boxes:`) make a function that return the sorted mse map
+
+        def oracle(image: Image.Image) -> list[tuple[str, float]]:
+            box_image_map = dsim_box(detected_boxes, base_image, image)
+            feature_dsim_list: list[tuple[str, float]] = []
+            for box, box_mapping in zip(detected_boxes, box_image_map):
+                feature_dsim_list.append(
+                    (box["label"], box_mapping[0][0])
+                )  # Only one image, so each result only contains one tuple [image,0]
+
+            # satisfying condition
+            sorted_dsim_list = sorted(
+                feature_dsim_list, reverse=True, key=lambda x: x[1]
+            )
+            sorted_edited_features = [name for name,_ in sorted_dsim_list]
+            condition = all(
+                [
+                    feature_to_edit == edited_feature
+                    for feature_to_edit, edited_feature in zip(
+                        features_to_edit,sorted_edited_features[:len(features_to_edit)]
+                    )
+                ]
+            )
+            return condition,sorted_dsim_list
 
         pass
 

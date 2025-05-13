@@ -7,7 +7,7 @@ import uuid
 
 from build.lib.vif_agent.prompt import DETECTION_PROMPT
 from vif_agent.modules.identification.identification import IdentificationModule
-from vif_agent.modules.identification.utils import get_boxes
+from vif_agent.modules.identification.utils import get_boxes, dsim_box
 from vif_agent.mutation.tex_mutant_creator import (
     TexMappingMutantCreator,
     TexMutantCreator,
@@ -105,6 +105,7 @@ class BoxIdentificationModule(LLMIdentificationModule):
         detected_boxes = get_boxes(
             base_image,
             self.identification_client,
+            features,
             self.identification_model,
             self.identification_model_temperature,
         )
@@ -115,13 +116,6 @@ class BoxIdentificationModule(LLMIdentificationModule):
             )
             return MappedCode(base_image, code, None)
 
-        """DEBUG"""
-        if self.debug:
-            json.dump(
-                detected_boxes,
-                open(os.path.join(self.debug_folder, self.debug_id, "boxes.json"), "w"),
-            )
-        """"""
         # create mutants of the code
         mutants = self.mutant_creator.create_mutants(code)
 
@@ -130,52 +124,24 @@ class BoxIdentificationModule(LLMIdentificationModule):
             {}
         )  # mapping between the feature and a list of possible spans of the part of the code of the feature and their "probability" of being the right span
 
-        """DEBUG"""
-        if self.debug:
-            base_image.save(
-                os.path.join(self.debug_folder, self.debug_id, "base_image.png")
-            )
-            shutil.rmtree(
-                os.path.join(self.debug_folder, self.debug_id, "features/"),
-                ignore_errors=True,
-            )
-            os.mkdir(os.path.join(self.debug_folder, self.debug_id, "features"))
-        """"""
-        for box in detected_boxes:
-            base_image_mask = base_image.crop(box["box_2d"])
-            """DEBUG"""
-            if self.debug:
-                base_image_mask.save(
-                    os.path.join(
-                        self.debug_folder,
-                        self.debug_id,
-                        "features/" + box["label"] + ".png",
-                    )
-                )
-            """"""
-            cur_mse_map: list[tuple[float, TexMutant]] = []
-            for mutant in mutants:
-                mutant_image_mask = mutant.image.crop(box["box_2d"])
-                cur_mse_map.append(
-                    (
-                        norm_mse(base_image_mask, mutant_image_mask)
-                        / math.prod(base_image_mask.size),
-                        mutant,
-                    )  # normalized MSE divided by the size of the image, to favoritize small specific features
-                )
+        #computing for each box the disimilarity between original image and mutants ones
+        box_image_map = dsim_box(
+            detected_boxes, base_image, [mutant.image for mutant in mutants]
+        )
 
-            sorted_mse_map: list[tuple[float, TexMutant]] = sorted(
-                filter(lambda m: m[0] != 0, cur_mse_map),
-                key=lambda m: m[0],
-                reverse=True,
-            )
+        #populating the feature map
+        for box, box_mapping in zip(detected_boxes, box_image_map):
+
+            sorted_dsim_mutant_map = [
+                (dsim, mutants[mutant_index]) for dsim, mutant_index in box_mapping
+            ]
 
             mappings_for_features: list[tuple[CodeImageMapping, float]] = [
-                (CodeImageMapping(mutant.deleted_spans, box["box_2d"]), mse_value)
-                for mse_value, mutant in sorted_mse_map
+                (CodeImageMapping(mutant.deleted_spans, box["box_2d"]), dsim_value)
+                for dsim_value, mutant in sorted_dsim_mutant_map
             ]
 
             feature_map[box["label"]] = mappings_for_features
 
-            mapped_code = MappedCode(base_image, code, feature_map)
+        mapped_code = MappedCode(base_image, code, feature_map)
         return mapped_code
