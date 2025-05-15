@@ -2,15 +2,29 @@ DETECTION_PROMPT: str = """Detect, with no more than 20 items. Output a json lis
 {labels} 
 in a field "label"."""
 
-PINPOINT_PROMPT = """Among the following features:
-{features}
+PINPOINT_PROMPT = """Given the following list of features:
+`{features}`
 
-Identify the ones most likely to be affected by the instruction:
-"{instruction}"
+And the instruction:
+`"{instruction}"`
 
-Begin with reasoning as needed.
-Conclude with the keyword ANSWER: on a line by itself, followed by a parsable JSON array (no extra text), listing features sorted from most to least likely to be edited.
+Your task:
 
-Format the last two lines exactly like this:
-ANSWER:
-["feature1", "feature2", ...]"""
+1. Reason step by step to determine the effects of the instruction.
+2. From the given list only, identify which features will be modified or deleted.
+3. Identify any new features that will be added (i.e., not in the original list).
+
+After reasoning, conclude with the keyword `ANSWER:` on its own line, followed by exactly three JSON arrays, one per line:
+
+1. Features from the original list that will be modified.
+2. Features from the original list that will be deleted.
+3. New features that will be added.
+
+Format (strict):
+
+ANSWER:  
+["featureA", "featureB", ...]  
+["featureC", ...]  
+["new_feature", ...]  
+
+"""

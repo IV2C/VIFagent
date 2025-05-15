@@ -6,6 +6,8 @@ from vif_agent.modules.identification.prompt import PINPOINT_PROMPT
 from vif_agent.modules.identification.utils import dsim_box, get_boxes
 import ast
 
+from vif_agent.utils import encode_image, norm_mse
+
 
 class IdentificationOracleBoxModule(IdentificationModule):
     def __init__(
@@ -36,47 +38,123 @@ class IdentificationOracleBoxModule(IdentificationModule):
         pinpoint_instructions = PINPOINT_PROMPT.format(
             features=feature_string, instruction=instruction
         )
+        encoded_image = encode_image(base_image)
         response = self.pinpoint_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": pinpoint_instructions}],
+            model=self.pinpoint_model,
+            temperature=self.pinpoint_model_temperature,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": pinpoint_instructions,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_image}"
+                            },
+                        },
+                    ],
+                },
+            ],
         )
         response = response.choices[0].message.content
-        features_to_edit = ast.literal_eval(response.split("ANSWER:")[1].strip())
+        features_to_edit, features_to_delete, features_to_add = tuple(
+            [
+                ast.literal_eval(arr)
+                for arr in response.split("ANSWER:")[1].strip().splitlines()
+            ]
+        )
 
-        detected_boxes = get_boxes(
+        original_detected_boxes = get_boxes(
             base_image,
             self.identification_client,
             features,
             self.identification_model,
             self.identification_model_temperature,
         )
-        # create the function that takes an image and returns the most edited box
-        # => refactor BoxIdentificationModule(mapping.py at line ~144 `for box in detected_boxes:`) make a function that return the sorted mse map
+        # creating a map from the list of detected boxes
+        original_detected_boxes = {
+            box["label"]: box["box_2d"] for box in original_detected_boxes
+        }
 
         def oracle(image: Image.Image) -> list[tuple[str, float]]:
-            box_image_map = dsim_box(detected_boxes, base_image, image)
-            feature_dsim_list: list[tuple[str, float]] = []
-            for box, box_mapping in zip(detected_boxes, box_image_map):
-                feature_dsim_list.append(
-                    (box["label"], box_mapping[0][0])
-                )  # Only one image, so each result only contains one tuple [image,0]
-
-            # satisfying condition
-            sorted_dsim_list = sorted(
-                feature_dsim_list, reverse=True, key=lambda x: x[1]
+            customized_detected_boxes = get_boxes(
+                image,
+                self.identification_client,
+                features + features_to_add,
+                self.identification_model,
+                self.identification_model_temperature,
             )
-            sorted_edited_features = [name for name,_ in sorted_dsim_list]
-            condition = all(
-                [
-                    feature_to_edit == edited_feature
-                    for feature_to_edit, edited_feature in zip(
-                        features_to_edit,sorted_edited_features[:len(features_to_edit)]
+            customized_detected_boxes = {
+                box["label"]: box["box_2d"] for box in original_detected_boxes
+            }
+
+            # TODO compare boxes, i.e. the size, cropped image difference
+            def get_score(
+                boxes: tuple[int, int, int, int],
+                image_1: Image.Image,
+                image_2: Image.Image,
+            ):
+                # first "union" score
+                cropped_im1 = Image.new("RGB", image_1.size, (0, 0, 0))
+                cropped_im2 = Image.new("RGB", image_2.size, (0, 0, 0))
+                for box in boxes:
+                    region = image_1.crop(box)
+                    cropped_im1.paste(region, box)
+                    region2 = image_2.crop(box)
+                    cropped_im2.paste(region2, box)
+                boxes_union_mse = norm_mse(cropped_im1, cropped_im2)
+
+                # Second "anti-union" score
+                hid_im1 = image_1.copy()
+                hid_im2 = image_2.copy()
+                for box in boxes:
+                    region = image_2.crop(box)
+                    hid_im1.paste(
+                        Image.new("RGB", (box[2] - box[0], box[3] - box[1]), (0, 0, 0)),
+                        box,
                     )
+                    hid_im2.paste(
+                        Image.new("RGB", (box[2] - box[0], box[3] - box[1]), (0, 0, 0)),
+                        box,
+                    )  # put black image on the boxes and mse
+                box_antiunion_mse = norm_mse(hid_im1, hid_im2)
+                return boxes_union_mse / box_antiunion_mse
+
+            # computing scores
+            
+
+            features_to_edit_boxes = [
+                box
+                for box in original_detected_boxes + customized_detected_boxes
+                if box["label"] in features_to_edit
+            ]
+            edit_score = get_score(features_to_edit_boxes)
+            edit_condition = (
+                edit_score > 0.9
+            )  # TODO adjust parameter
+            
+            added_condition = all(
+                [
+                    feature_to_add in customized_detected_boxes
+                    for feature_to_add in features_to_add
                 ]
             )
-            return condition,sorted_dsim_list
+            deleted_condition = all(
+                [
+                    feature_to_delete not in customized_detected_boxes
+                    for feature_to_delete in features_to_delete
+                ]
+            )
 
-        pass
+            full_condition = edit_condition and added_condition and deleted_condition
+
+            return full_condition, ( edit_score, added_condition,deleted_condition)
+
+        return oracle
 
     def __str__(self):
         return (
