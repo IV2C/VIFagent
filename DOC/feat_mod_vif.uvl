@@ -5,13 +5,16 @@ features
                 alternative
                     LLMsearch
             Identification
-                or
-                    Mapper
+                mandatory
+                    module                   
+                        mandatory
+                            Mapper
+                            Oracle
+                    method
                         alternative
                             Box
                             Segment
                             Clip
-                    Oracle  
         mandatory
             Edition
                 alternative

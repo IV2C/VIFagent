@@ -11,13 +11,7 @@ from PIL import Image
 from openai import OpenAI
 
 
-def get_boxes(
-    image: Image.Image,
-    client: OpenAI,
-    features,
-    model,
-    temperature
-):
+def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
     encoded_image = encode_image(image=image)
 
     response = client.chat.completions.create(
