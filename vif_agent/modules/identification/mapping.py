@@ -18,7 +18,7 @@ from vif_agent.mutation.mutant import TexMutant
 
 from PIL import Image
 
-from vif_agent.utils import adjust_bbox, encode_image, norm_mse
+from vif_agent.utils import adjust_bbox, encode_image, mse
 
 import re
 from loguru import logger

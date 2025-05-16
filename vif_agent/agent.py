@@ -10,7 +10,7 @@ from vif_agent.feature import CodeImageMapping, MappedCode
 from vif_agent.modules.edition.edition import LLMEditionModule
 from vif_agent.modules.identification.identification import BoxIdentificationModule
 from vif_agent.mutation.mutant import TexMutant
-from vif_agent.utils import adjust_bbox, encode_image, norm_mse
+from vif_agent.utils import adjust_bbox, encode_image, mse
 from vif_agent.prompt import *
 from vif_agent.mutation.tex_mutant_creator import (
     TexMappingMutantCreator,
