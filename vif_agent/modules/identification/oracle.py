@@ -1,3 +1,4 @@
+import math
 from vif_agent.modules.identification.identification import IdentificationModule
 from PIL import Image
 from collections.abc import Callable
@@ -6,7 +7,7 @@ from vif_agent.modules.identification.prompt import PINPOINT_PROMPT
 from vif_agent.modules.identification.utils import dsim_box, get_boxes
 import ast
 
-from vif_agent.utils import encode_image, norm_mse
+from vif_agent.utils import encode_image, get_used_pixels, mse, se
 
 
 class IdentificationOracleBoxModule(IdentificationModule):
@@ -75,12 +76,17 @@ class IdentificationOracleBoxModule(IdentificationModule):
             self.identification_model,
             self.identification_model_temperature,
         )
-        # creating a map from the list of detected boxes
-        original_detected_boxes = {
-            box["label"]: box["box_2d"] for box in original_detected_boxes
-        }
 
-        def oracle(image: Image.Image) -> list[tuple[str, float]]:
+        @staticmethod
+        def oracle(image: Image.Image) -> tuple[bool,tuple[float,bool,bool]]:
+            """Assert that an image solution is a right solution
+
+            Args:
+                image (Image.Image): image customized by the LLM
+
+            Returns:
+                tuple[bool,tuple[float,bool,bool]]: tuple containing a boolean for wether the proposed solution is right, and another tuple with the edit_score(float), added_condition(bool) and delete_condition(bool)
+            """
             customized_detected_boxes = get_boxes(
                 image,
                 self.identification_client,
@@ -88,16 +94,17 @@ class IdentificationOracleBoxModule(IdentificationModule):
                 self.identification_model,
                 self.identification_model_temperature,
             )
-            customized_detected_boxes = {
-                box["label"]: box["box_2d"] for box in original_detected_boxes
+            customized_detected_boxes_dict = {
+                box["label"]: box["box_2d"] for box in customized_detected_boxes
             }
 
-            # TODO compare boxes, i.e. the size, cropped image difference
             def get_score(
-                boxes: tuple[int, int, int, int],
+                boxes: list[tuple[int, int, int, int]],
                 image_1: Image.Image,
                 image_2: Image.Image,
             ):
+                
+                
                 # first "union" score
                 cropped_im1 = Image.new("RGB", image_1.size, (0, 0, 0))
                 cropped_im2 = Image.new("RGB", image_2.size, (0, 0, 0))
@@ -106,46 +113,54 @@ class IdentificationOracleBoxModule(IdentificationModule):
                     cropped_im1.paste(region, box)
                     region2 = image_2.crop(box)
                     cropped_im2.paste(region2, box)
-                boxes_union_mse = norm_mse(cropped_im1, cropped_im2)
+                #computing the number of pixel not black and dividing the squarred error by it
+                cropped_im1.save("debug_cropped1.png")
+                cropped_im2.save("debug_cropped2.png")
+                used_pixels = get_used_pixels(cropped_im1)
+                boxes_union_mse = se(cropped_im1, cropped_im2)/used_pixels
 
                 # Second "anti-union" score
                 hid_im1 = image_1.copy()
                 hid_im2 = image_2.copy()
                 for box in boxes:
                     region = image_2.crop(box)
+                    crop_size = (box[2] - box[0], box[3] - box[1])
                     hid_im1.paste(
-                        Image.new("RGB", (box[2] - box[0], box[3] - box[1]), (0, 0, 0)),
+                        Image.new("RGB", crop_size, (0, 0, 0)),
                         box,
                     )
                     hid_im2.paste(
-                        Image.new("RGB", (box[2] - box[0], box[3] - box[1]), (0, 0, 0)),
+                        Image.new("RGB", crop_size, (0, 0, 0)),
                         box,
-                    )  # put black image on the boxes and mse
-                box_antiunion_mse = norm_mse(hid_im1, hid_im2)
-                return boxes_union_mse / box_antiunion_mse
+                    )  # put black image on the boxes 
+                #this time dividing by the prod of the size minus the number of "anti-used" pixels
+                hid_im1.save("debug_hidden1.png")
+                hid_im2.save("debug_hidden2.png")
+                box_antiunion_mse = se(hid_im1, hid_im2)/(math.prod(image_1.size)-used_pixels)
+                return float(boxes_union_mse / (1+box_antiunion_mse))
 
             # computing scores
             
-
+            
             features_to_edit_boxes = [
-                box
+                box["box_2d"]
                 for box in original_detected_boxes + customized_detected_boxes
                 if box["label"] in features_to_edit
             ]
-            edit_score = get_score(features_to_edit_boxes)
+            edit_score = get_score(features_to_edit_boxes,base_image,image)
             edit_condition = (
-                edit_score > 0.9
+                edit_score > 0.3
             )  # TODO adjust parameter
             
             added_condition = all(
                 [
-                    feature_to_add in customized_detected_boxes
+                    feature_to_add in customized_detected_boxes_dict
                     for feature_to_add in features_to_add
                 ]
             )
             deleted_condition = all(
                 [
-                    feature_to_delete not in customized_detected_boxes
+                    feature_to_delete not in customized_detected_boxes_dict
                     for feature_to_delete in features_to_delete
                 ]
             )

@@ -8,8 +8,10 @@ from vif_agent.renderer.tex_renderer import TexRenderer
 from vif_agent.utils import encode_image
 
 renderer = TexRenderer()
-monkey_code = open("tests/resources/mapped_code/monkey_bigger_ears.tex", "r").read()
+monkey_code = open("tests/resources/mapped_code/monkey_sad.tex", "r").read()
 image = renderer.from_string_to_image(monkey_code)
+
+image.save("tests/resources/mapped_code/monkey_sad.png")
 
 client = OpenAI(
     api_key=os.environ.get("GOOGLE_API_KEY"),
@@ -22,7 +24,7 @@ features = {"features":[
     "left brown monkey ear",
     "right brown monkey ear",
     "left pink monkey ear",
-    "right pink monkey",
+    "right pink monkey ear",
 ]}
 
 boxes = get_boxes(
@@ -30,5 +32,5 @@ boxes = get_boxes(
 )
 
 
-with open("tests/resources/mapped_code/monkey_bigger_ears_boxes.json", "w") as mkbx:
+with open("tests/resources/mapped_code/monkey_sad_boxes.json", "w") as mkbx:
     json.dump(boxes, mkbx)

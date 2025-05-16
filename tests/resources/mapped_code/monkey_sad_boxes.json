@@ -1,0 +1,38 @@
+[
+  {
+    "box_2d": [
+      67,
+      99,
+      118,
+      158
+    ],
+    "label": "left brown monkey ear"
+  },
+  {
+    "box_2d": [
+      223,
+      99,
+      274,
+      158
+    ],
+    "label": "right brown monkey ear"
+  },
+  {
+    "box_2d": [
+      112,
+      116,
+      142,
+      166
+    ],
+    "label": "left pink monkey ear"
+  },
+  {
+    "box_2d": [
+      200,
+      116,
+      230,
+      166
+    ],
+    "label": "right pink monkey ear"
+  }
+]

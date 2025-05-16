@@ -6,7 +6,7 @@ import shutil
 
 from loguru import logger
 from build.lib.vif_agent.prompt import DETECTION_PROMPT
-from vif_agent.utils import adjust_bbox, encode_image, norm_mse
+from vif_agent.utils import adjust_bbox, encode_image, mse
 from PIL import Image
 from openai import OpenAI
 
@@ -74,7 +74,7 @@ def dsim_box(
             mutant_image_mask = image.crop(box["box_2d"])
             cur_mse_map.append(
                 (
-                    norm_mse(base_image_mask, mutant_image_mask)
+                    mse(base_image_mask, mutant_image_mask)
                     / math.prod(base_image_mask.size),
                     i,
                 )  # normalized MSE divided by the size of the image, to favoritize small specific features
