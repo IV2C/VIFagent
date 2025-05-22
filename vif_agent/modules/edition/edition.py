@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 from openai import OpenAI
 
 from vif_agent.feature import CodeEdit, MappedCode
@@ -12,7 +13,12 @@ from vif_agent.renderer.tex_renderer import TexRenderer
 from vif_agent.utils import encode_image
 
 
-class LLMEditionModule:
+class EditionModule:
+    def customize(instruction: str):
+        pass
+
+
+class LLMEditionModule(EditionModule):
     def __init__(
         self,
         *,
@@ -46,7 +52,7 @@ class LLMEditionModule:
             "get_feature_location_errors": 0,
             "render_code_errors": 0,
             "modify_code_errors": 0,
-            "finish_customization_calls":0,
+            "finish_customization_calls": 0,
             "unknown_tool_calls": [],
         }
 
@@ -54,7 +60,7 @@ class LLMEditionModule:
         mappings = self.mapped_code.get_cimappings(feature_name)
         return [
             ([self.mapped_code.code[span[0] : span[1]] for span in mapping.spans], prob)
-            for (mapping, prob) in mappings[:3]#only the 3 most probable
+            for (mapping, prob) in mappings[:3]  # only the 3 most probable
         ]
 
     def render_code(self) -> Image:
@@ -75,11 +81,16 @@ class LLMEditionModule:
             raise ToolCallError(str(e))
         return edited_code
 
-    def customize(self, mapped_code: MappedCode, instruction: str) -> str:
+    def customize(self, instruction: str, mapped_code: MappedCode) -> str:
         self.mapped_code = mapped_code
         messages = [
             {"role": "system", "content": EDITION_SYSTEM_PROMPT},
-            {"role": "user", "content": IT_PROMPT.format(instruction=instruction,content=mapped_code.get_annotated())},
+            {
+                "role": "user",
+                "content": IT_PROMPT.format(
+                    instruction=instruction, content=mapped_code.get_annotated()
+                ),
+            },
         ]
 
         completion = self.client.chat.completions.create(
@@ -149,3 +160,14 @@ class LLMEditionModule:
 
 class ToolCallError(Exception):
     pass
+
+
+class OracleEditionModule(EditionModule):
+    def customize(
+        instruction: str,
+        oracle: Callable[
+            [Image.Image], tuple[bool, tuple[float, bool, bool], str, Any]
+        ],
+    ):
+        # TODO
+        pass

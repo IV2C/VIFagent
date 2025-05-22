@@ -80,7 +80,7 @@ ANSWER:
         modified_ears_monkey_image = renderer.from_string_to_image(modified_ears_monkey)
         vif_agent.modules.identification.oracle.get_boxes = customized_image_get_boxes
 
-        full_condition, (edit_score, added_condition, deleted_condition) = self.oracle(
+        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.oracle(
             modified_ears_monkey_image
         )
 
@@ -88,8 +88,6 @@ ANSWER:
             (full_condition, (edit_score, added_condition, deleted_condition)),
             (True, (0.3285546898841858, True, True)),
         )
-
-        #TODO add other tests for failing upon wrong addition deletion etc
         
     def test_oracle_no_edit(self):
 
@@ -105,7 +103,7 @@ ANSWER:
         modified_ears_monkey_image = renderer.from_string_to_image(modified_ears_monkey)
         vif_agent.modules.identification.oracle.get_boxes = customized_image_get_boxes
 
-        full_condition, (edit_score, added_condition, deleted_condition) = self.oracle(
+        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.oracle(
             modified_ears_monkey_image
         )
 
@@ -128,7 +126,7 @@ ANSWER:
         modified_ears_monkey_image = renderer.from_string_to_image(modified_ears_monkey)
         vif_agent.modules.identification.oracle.get_boxes = customized_image_get_boxes
 
-        full_condition, (edit_score, added_condition, deleted_condition) = self.oracle(
+        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.oracle(
             modified_ears_monkey_image
         )
 

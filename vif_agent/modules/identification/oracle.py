@@ -1,13 +1,14 @@
 import math
+from typing import Any
 from vif_agent.modules.identification.identification import IdentificationModule
 from PIL import Image
 from collections.abc import Callable
 from openai import Client
 from vif_agent.modules.identification.prompt import PINPOINT_PROMPT
-from vif_agent.modules.identification.utils import dsim_box, get_boxes
+from vif_agent.modules.identification.utils import get_boxes
 import ast
 
-from vif_agent.utils import encode_image, get_used_pixels, mse, se
+from vif_agent.utils import encode_image, get_used_pixels, se
 
 
 class IdentificationOracleBoxModule(IdentificationModule):
@@ -34,7 +35,7 @@ class IdentificationOracleBoxModule(IdentificationModule):
 
     def get_oracle(
         self, features: list[str], instruction: str, base_image: Image.Image
-    ) -> Callable[[Image.Image], tuple[list[tuple[str, float]], bool]]:
+    ) -> Callable[[Image.Image], tuple[bool, tuple[float, bool, bool], str, Any]]:
         feature_string = ",".join([f for f in features])
         pinpoint_instructions = PINPOINT_PROMPT.format(
             features=feature_string, instruction=instruction
@@ -78,7 +79,9 @@ class IdentificationOracleBoxModule(IdentificationModule):
         )
 
         @staticmethod
-        def oracle(image: Image.Image) -> tuple[bool,tuple[float,bool,bool]]:
+        def oracle(
+            image: Image.Image,
+        ) -> tuple[bool, tuple[float, bool, bool], str, Any]:
             """Assert that an image solution is a right solution
 
             Args:
@@ -87,6 +90,7 @@ class IdentificationOracleBoxModule(IdentificationModule):
             Returns:
                 tuple[bool,tuple[float,bool,bool]]: tuple containing a boolean for wether the proposed solution is right, and another tuple with the edit_score(float), added_condition(bool) and delete_condition(bool)
             """
+
             customized_detected_boxes = get_boxes(
                 image,
                 self.identification_client,
@@ -103,8 +107,7 @@ class IdentificationOracleBoxModule(IdentificationModule):
                 image_1: Image.Image,
                 image_2: Image.Image,
             ):
-                
-                
+
                 # first "union" score
                 cropped_im1 = Image.new("RGB", image_1.size, (0, 0, 0))
                 cropped_im2 = Image.new("RGB", image_2.size, (0, 0, 0))
@@ -113,11 +116,11 @@ class IdentificationOracleBoxModule(IdentificationModule):
                     cropped_im1.paste(region, box)
                     region2 = image_2.crop(box)
                     cropped_im2.paste(region2, box)
-                #computing the number of pixel not black and dividing the squarred error by it
+                # computing the number of pixel not black and dividing the squarred error by it
                 cropped_im1.save("debug_cropped1.png")
                 cropped_im2.save("debug_cropped2.png")
                 used_pixels = get_used_pixels(cropped_im1)
-                boxes_union_mse = se(cropped_im1, cropped_im2)/used_pixels
+                boxes_union_mse = se(cropped_im1, cropped_im2) / used_pixels
 
                 # Second "anti-union" score
                 hid_im1 = image_1.copy()
@@ -132,42 +135,82 @@ class IdentificationOracleBoxModule(IdentificationModule):
                     hid_im2.paste(
                         Image.new("RGB", crop_size, (0, 0, 0)),
                         box,
-                    )  # put black image on the boxes 
-                #this time dividing by the prod of the size minus the number of "anti-used" pixels
+                    )  # put black image on the boxes
+                # this time dividing by the prod of the size minus the number of "anti-used" pixels
                 hid_im1.save("debug_hidden1.png")
                 hid_im2.save("debug_hidden2.png")
-                box_antiunion_mse = se(hid_im1, hid_im2)/(math.prod(image_1.size)-used_pixels)
-                return float(boxes_union_mse / (1+box_antiunion_mse))
+                box_antiunion_mse = se(hid_im1, hid_im2) / (
+                    math.prod(image_1.size) - used_pixels
+                )
+                return float(boxes_union_mse / (1 + box_antiunion_mse))
 
-            # computing scores
-            
-            
-            features_to_edit_boxes = [
-                box["box_2d"]
-                for box in original_detected_boxes + customized_detected_boxes
-                if box["label"] in features_to_edit
+            # computing scores and conditions
+
+            if len(features_to_edit) == 0:
+                edit_condition = True
+                edit_score = -1
+            else:
+                features_to_edit_boxes = [
+                    box["box_2d"]
+                    for box in original_detected_boxes + customized_detected_boxes
+                    if box["label"] in features_to_edit
+                ]
+                edit_score = get_score(features_to_edit_boxes, base_image, image)
+                edit_condition = edit_score > 0.1  # TODO adjust parameter
+
+            not_added_features = [
+                feature_to_add
+                for feature_to_add in features_to_add
+                if feature_to_add not in customized_detected_boxes_dict
             ]
-            edit_score = get_score(features_to_edit_boxes,base_image,image)
-            edit_condition = (
-                edit_score > 0.3
-            )  # TODO adjust parameter
-            
-            added_condition = all(
-                [
-                    feature_to_add in customized_detected_boxes_dict
-                    for feature_to_add in features_to_add
-                ]
-            )
-            deleted_condition = all(
-                [
-                    feature_to_delete not in customized_detected_boxes_dict
-                    for feature_to_delete in features_to_delete
-                ]
-            )
+
+            added_condition = len(not_added_features) == 0
+
+            not_removed_features = [
+                feature_to_delete
+                for feature_to_delete in features_to_delete
+                if feature_to_delete in customized_detected_boxes_dict
+            ]
+
+            deleted_condition = len(not_removed_features) == 0
 
             full_condition = edit_condition and added_condition and deleted_condition
 
-            return full_condition, ( edit_score, added_condition,deleted_condition)
+            #for observability
+            debug_object = {
+                "to_add": features_to_add,
+                "to_delete": features_to_delete,
+                "to_edit": features_to_edit,
+                "original_boxes": customized_detected_boxes_dict,
+                "customized_boxes": customized_detected_boxes_dict,
+            }
+            
+            #creating report
+            add_report: str = (
+                f"The features [{', '.join(not_added_features)}] were not added to the resulting image.\n"
+            )
+            edit_report: str = (
+                f"The features [{', '.join(features_to_edit)}] were not edited in the resulting image, here is the current score for your edit: {str(round(edit_score,3))}\n"
+            )
+            deleted_report: str = (
+                f"The features [{', '.join(not_removed_features)}] were not removed to the resulting image.\n"
+            )
+            full_report = (
+                add_report
+                if not added_condition
+                else (
+                    edit_report
+                    if not edit_condition
+                    else "" + deleted_report if not deleted_condition else ""
+                )
+            )
+
+            return (
+                full_condition,
+                (edit_score, added_condition, deleted_condition),
+                full_report,
+                debug_object,
+            )
 
         return oracle
 
