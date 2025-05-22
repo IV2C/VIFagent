@@ -18,13 +18,14 @@ After reasoning, conclude with the keyword `ANSWER:` on its own line, followed b
 
 1. Features from the original list that will be modified.
 2. Features from the original list that will be deleted.
-3. New features that will be added.
+3. New features that will be added. Each feature must be between 1 and 4 words long.
 
-Format (strict):
+Final format (strict):
 
 ANSWER:  
 ["featureA", "featureB", ...]  
 ["featureC", ...]  
 ["new_feature", ...]  
+
 
 """

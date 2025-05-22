@@ -20,12 +20,12 @@ client = OpenAI(
 model = "gemini-2.0-flash"
 temperature = 0.3
 
-features = {"features":[
+features = [
     "left brown monkey ear",
     "right brown monkey ear",
     "left pink monkey ear",
     "right pink monkey ear",
-]}
+]
 
 boxes = get_boxes(
     client=client, image=image, model=model, temperature=temperature, features=features

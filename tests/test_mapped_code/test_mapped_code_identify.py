@@ -10,8 +10,7 @@ class TestMappedCodeIdentify(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.monkey_features = {
-            "features": [
+        cls.monkey_features =[
                 "light blue background circle",
                 "brown monkey head outline",
                 "pink monkey face",
@@ -25,7 +24,7 @@ class TestMappedCodeIdentify(unittest.TestCase):
                 "right pink monkey nostril",
                 "pink curved monkey mouth",
             ]
-        }
+        
 
         cls.monkey_code = open("tests/resources/monkey.tex", "r").read()
         cls.monkey_image = Image.open("tests/resources/mapped_code/monkey.png")

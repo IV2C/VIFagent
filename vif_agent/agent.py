@@ -7,8 +7,18 @@ from collections.abc import Callable
 from PIL import Image
 from sentence_transformers import SentenceTransformer
 from vif_agent.feature import CodeImageMapping, MappedCode
-from vif_agent.modules.edition.edition import LLMEditionModule
-from vif_agent.modules.identification.identification import BoxIdentificationModule
+from vif_agent.modules.edition.edition import (
+    EditionModule,
+    LLMEditionModule,
+    OracleEditionModule,
+)
+from vif_agent.modules.identification.identification import IdentificationModule
+from vif_agent.modules.identification.mapping import (
+    BoxIdentificationModule,
+    IdentificationMappingModule,
+)
+from vif_agent.modules.identification.oracle import IdentificationOracleBoxModule
+from vif_agent.modules.search.search import SearchModule
 from vif_agent.mutation.mutant import TexMutant
 from vif_agent.utils import adjust_bbox, encode_image, mse
 from vif_agent.prompt import *
@@ -40,15 +50,17 @@ class IdModuleType(Enum):
     CLIP = 2
 
 
+class UnsatifiableConfig(Exception):
+    pass
+
+
 class VifAgent:
     def __init__(
         self,
         code_renderer: Callable[[str], Image.Image],
-        edition_module: LLMEditionModule = None,
-        search_client: OpenAI = None,
-        search_model: str = None,
-        search_model_temperature=None,
-        identification_module: BoxIdentificationModule = None,
+        edition_module: EditionModule = None,
+        search_module: SearchModule = None,
+        identification_module: IdentificationModule = None,
         debug=False,
         clarify_instruction=True,
         debug_folder=".tmp/debug",
@@ -59,15 +71,35 @@ class VifAgent:
         self.debug = debug
         self.debug_folder = debug_folder
 
-        self.search_client = search_client
-        self.search_model_temperature = search_model_temperature
-        self.search_model = search_model
+        self.search_module = search_module
 
         self.identification_module = identification_module
 
         self.clarify_instruction = clarify_instruction
 
         self.mutant_creator = mutant_creator
+
+        self.check_satifiable_config()
+
+    def check_satifiable_config(self):
+        if not self.search_module:
+            raise UnsatifiableConfig("Search module is necessary")
+
+        match self.edition_module:
+            case LLMEditionModule():
+                if not isinstance(
+                    self.identification_module, IdentificationMappingModule
+                ):
+                    raise UnsatifiableConfig(
+                        "LLMEdition module requires an identification mapping module"
+                    )
+            case OracleEditionModule():
+                if not isinstance(
+                    self.identification_module, IdentificationOracleBoxModule
+                ):
+                    raise UnsatifiableConfig(
+                        "OracleEditionModule module requires an IdentificationOracleBoxModule module"
+                    )
 
     def apply_instruction(self, code: str, instruction: str):
         """Applies the instruction to the code, using the settings
@@ -79,26 +111,48 @@ class VifAgent:
         Returns:
             _type_: _description_
         """
-        
+
         """DEBUG"""
         if self.debug:
             self.debug_id = str(uuid.uuid4())
             os.mkdir(os.path.join(self.debug_folder, self.debug_id))
         """"""
         base_image = self.code_renderer(code)
-        
+
         if self.clarify_instruction:
             logger.info("clarifying the instruction")
             instruction = self.apply_clarification(instruction, base_image)
-        
-        
-        mapped_code = self.identify_features(code)
 
+        # unifying the code for easier parsing in steps ahead
+        code = "\n".join(line.strip() for line in code.split("\n"))
+        # render image
+        base_image = self.code_renderer(code)
+        # VLM to get list of feature
+        logger.info("Searching for features")
 
-
+        features = self.search_module.get_features(base_image)
+        if not features:
+            logger.warning(
+                f"Feature search failed, using un-commented code"
+            )  # depending on the search module we cannot ensure it does not happen
+            return code, base_image
+        self.features = features
 
         logger.info("applying the instruction")
-        response_code = self.edition_module.customize(mapped_code,instruction=instruction)
+        
+        ##Applying either by agent+tool or by oracle loop
+        match self.edition_module:
+            case LLMEditionModule():
+                mapped_code = self.identification_module.identify(
+                    base_image=base_image, features=features, code=code
+                )
+                response_code = self.edition_module.customize(
+            mapped_code=mapped_code, instruction=instruction
+        )
+            case OracleEditionModule():
+                oracle = self.identification_module.get_oracle(self.features,instruction,base_image)
+                response_code = self.edition_module.customize(instruction,oracle)
+        
         return response_code
 
     def apply_clarification(self, instruction: str, base_image: Image.Image):
@@ -139,79 +193,11 @@ class VifAgent:
 
         return new_instruction
 
-    def identify_features(self, code: str) -> MappedCode:
-        """Identifies the features within the code by commenting it
-
-        Args:
-            code (str): The code where the features need to be identified
-            comment_character (str): the character used to comment the code
-        Returns:
-            dict[str, list[Spans]]: a dictionnary associating the feature with a list of probable spans
-        """
-        """DEBUG"""
-        if self.debug and not hasattr(self, "debug_id"):
-            self.debug_id = str(uuid.uuid4())
-            os.mkdir(os.path.join(self.debug_folder, self.debug_id))
-        """"""
-
-        # unifying the code for easier parsing in mutant creation
-        code = "\n".join(line.strip() for line in code.split("\n"))
-        # render image
-        base_image = self.code_renderer(code)
-        # VLM to get list of feature
-        logger.info("Searching for features")
-        encoded_image = encode_image(image=base_image)
-        response = self.search_client.chat.completions.create(
-            model=self.search_model,
-            temperature=self.search_model_temperature,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": FEATURE_IDENTIFIER_PROMPT,
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded_image}"
-                            },
-                        },
-                    ],
-                }
-            ],
-        )
-        pattern = r"```(?:\w+)?\n([\s\S]+?)```"
-        search_match = re.search(pattern, response.choices[0].message.content)
-        if not search_match:
-            logger.warning(
-                f"Feature search failed, using un-commented code, unparseable response {response.choices[0].message.content}"
-            )
-            return code, base_image
-
-        features_match = search_match.group(1)
-        features = json.loads(features_match)
-        self.features = features
-        """DEBUG"""
-        if self.debug:
-            json.dump(
-                features,
-                open(
-                    os.path.join(self.debug_folder, self.debug_id, "features.json"), "w"
-                ),
-            )
-        """"""
-        # identification using the identification module
-        logger.info("Identifying features")
-        return self.identification_module.identify(
-            base_image=base_image, features=features, code=code
-        )
-
     def __str__(self):
         return (
-            f"VifAgent(model={self.model}, temperature={self.temperature}, "
-            f"search_model={self.search_model}, search_model_temperature={self.search_model_temperature}, "
+            f"VifAgent("
+            f"search_module={self.search_module}"
             f"identification_module={self.identification_module}"
+            f"edition_module={self.edition_module}"
             f"debug={self.debug}, debug_folder='{self.debug_folder}')"
         )

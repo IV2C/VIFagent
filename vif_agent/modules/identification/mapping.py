@@ -34,7 +34,7 @@ class IdentificationMappingModule(IdentificationModule):
         self.mutant_creator = mutant_creator
         super().__init__(debug=debug, debug_folder=debug_folder)
 
-    def map_code(
+    def identify(
         self, code: str, features: list[str], base_image: Image.Image
     ) -> MappedCode:
         pass
@@ -100,7 +100,6 @@ class BoxIdentificationModule(LLMIdentificationModule):
     def identify(self, code: str, features: list[str], base_image: Image.Image):
         self.debug_id = str(uuid.uuid4())
         os.mkdir(os.path.join(self.debug_folder, self.debug_id))
-        features = features["features"]
 
         detected_boxes = get_boxes(
             base_image,
