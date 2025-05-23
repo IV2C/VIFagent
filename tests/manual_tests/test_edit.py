@@ -3,12 +3,12 @@ import pickle
 from openai import OpenAI
 
 from vif_agent.agent import VifAgent
-from vif_agent.modules.edition.edition import LLMEditionModule
+from vif_agent.modules.edition.edition import LLMAgenticEditionModule
 from vif_agent.modules.identification.identification import BoxIdentificationModule
 from vif_agent.renderer.tex_renderer import TexRenderer
 
 
-edition_module = LLMEditionModule(
+edition_module = LLMAgenticEditionModule(
     client=OpenAI(
         api_key=os.environ.get("GROQ_API_KEY"),
         base_url="https://api.groq.com/openai/v1",

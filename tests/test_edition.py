@@ -3,7 +3,7 @@ import unittest
 import torch
 
 from vif_agent.feature import CodeEdit, CodeImageMapping, MappedCode
-from vif_agent.modules.edition.edition import LLMEditionModule, ToolCallError
+from vif_agent.modules.edition.edition import LLMAgenticEditionModule, ToolCallError
 
 
 class TestMappedCode(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestMappedCode(unittest.TestCase):
         ]
 
         mapped_code = MappedCode(code=code, feature_map=None, image=None)
-        editionmodule: LLMEditionModule = LLMEditionModule(client=None, model="")
+        editionmodule: LLMAgenticEditionModule = LLMAgenticEditionModule(client=None, model="")
         editionmodule.mapped_code = mapped_code
 
         with self.assertRaises(ToolCallError):
@@ -69,7 +69,7 @@ class TestMappedCode(unittest.TestCase):
             ],
         }
         mapped_code = MappedCode(code=code, feature_map=dummy_mapping, image=None)
-        editionmodule: LLMEditionModule = LLMEditionModule(client=None, model="")
+        editionmodule: LLMAgenticEditionModule = LLMAgenticEditionModule(client=None, model="")
         editionmodule.mapped_code = mapped_code
 
         # even if cat !=cats, similarities are normalizes between 0 and 1, so we get the same probs as the ones in dummy_mapping

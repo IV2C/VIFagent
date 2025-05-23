@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 from vif_agent.feature import CodeImageMapping, MappedCode
 from vif_agent.modules.edition.edition import (
     EditionModule,
-    LLMEditionModule,
+    LLMAgenticEditionModule,
     OracleEditionModule,
 )
 from vif_agent.modules.identification.identification import IdentificationModule
@@ -86,7 +86,7 @@ class VifAgent:
             raise UnsatifiableConfig("Search module is necessary")
 
         match self.edition_module:
-            case LLMEditionModule():
+            case LLMAgenticEditionModule():
                 if not isinstance(
                     self.identification_module, IdentificationMappingModule
                 ):
@@ -139,20 +139,22 @@ class VifAgent:
         self.features = features
 
         logger.info("applying the instruction")
-        
+
         ##Applying either by agent+tool or by oracle loop
         match self.edition_module:
-            case LLMEditionModule():
+            case LLMAgenticEditionModule():
                 mapped_code = self.identification_module.identify(
                     base_image=base_image, features=features, code=code
                 )
                 response_code = self.edition_module.customize(
-            mapped_code=mapped_code, instruction=instruction
-        )
+                    mapped_code=mapped_code, instruction=instruction
+                )
             case OracleEditionModule():
-                oracle = self.identification_module.get_oracle(self.features,instruction,base_image)
-                response_code = self.edition_module.customize(instruction,oracle)
-        
+                oracle = self.identification_module.get_oracle(
+                    self.features, instruction, base_image
+                )
+                response_code = self.edition_module.customize(instruction, code, oracle)
+
         return response_code
 
     def apply_clarification(self, instruction: str, base_image: Image.Image):

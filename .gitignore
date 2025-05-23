@@ -9,3 +9,7 @@ vif_agent/mutation/__pycache__/tex_mutant_creator.cpython-312.pyc
 extension/tikz-mapped/node_modules/
 extension/tikz-mapped/.vscode-test.mjs
 extension/tikz-mapped/.vscodeignore
+debug_cropped1.png
+debug_cropped2.png
+debug_hidden1.png
+debug_hidden2.png

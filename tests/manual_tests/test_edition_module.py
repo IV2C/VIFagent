@@ -3,7 +3,7 @@ import pickle
 
 from openai import OpenAI
 from vif_agent.feature import MappedCode
-from vif_agent.modules.edition.edition import LLMEditionModule
+from vif_agent.modules.edition.edition import LLMAgenticEditionModule
 from vif_agent.utils import show_conversation
 
 with open("resources/chimpanzee/p.pickle", "rb") as mp:
@@ -25,7 +25,7 @@ with open("resources/chimpanzee/p.pickle", "rb") as mp:
     temperature=0.5   
 ) """
 
-edition_module = LLMEditionModule(
+edition_module = LLMAgenticEditionModule(
     client=OpenAI(
         api_key=os.environ.get("GOOGLE_API_KEY"),
         base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
