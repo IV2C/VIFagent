@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
+import PIL.Image
 from openai import OpenAI
 
 from vif_agent.feature import CodeEdit, MappedCode
@@ -27,6 +28,23 @@ class LLMEditionModule(EditionModule):
         temperature: float = 0.0,
         debug=False,
         debug_folder=".tmp/debug",
+    ):
+        self.client = client
+        self.model = model
+        self.temperature = temperature
+        self.debug = debug
+        self.debug_folder = debug_folder
+
+
+class LLMAgenticEditionModule(LLMEditionModule):
+    def __init__(
+        self,
+        *,
+        client: OpenAI,
+        model: str,
+        temperature: float = 0.0,
+        debug=False,
+        debug_folder=".tmp/debug",
         used_tools: list = [
             feature_find_tool,
             render_tool,
@@ -37,12 +55,13 @@ class LLMEditionModule(EditionModule):
             [str], Image.Image
         ] = TexRenderer().from_string_to_image,
     ):
-        self.client = client
-        self.model = model
-        self.temperature = temperature
-        self.debug = debug
-        self.debug_folder = debug_folder
-        self.used_tools = used_tools
+        super().__init__(
+            client=client,
+            model=model,
+            temperature=temperature,
+            debug_folder=debug_folder,
+            debug=debug,
+        )
         self.code_renderer = code_renderer
 
         self.conv_data = {
@@ -55,6 +74,7 @@ class LLMEditionModule(EditionModule):
             "finish_customization_calls": 0,
             "unknown_tool_calls": [],
         }
+        self.used_tools = used_tools
 
     def get_feature_location(self, feature_name: str) -> list[tuple[list[str], float]]:
         mappings = self.mapped_code.get_cimappings(feature_name)
@@ -162,12 +182,54 @@ class ToolCallError(Exception):
     pass
 
 
-class OracleEditionModule(EditionModule):
+class OracleEditionModule(LLMEditionModule):
+    def __init__(
+        self, *, client, model, temperature=0, debug=False, debug_folder=".tmp/debug"
+    ):
+        super().__init__(
+            client=client,
+            model=model,
+            temperature=temperature,
+            debug=debug,
+            debug_folder=debug_folder,
+        )
+
+    def send_initial_message(self, instruction: str, image: PIL.Image.Image):
+        raise NotImplementedError()  # TODO
+        encoded_image = encode_image(encoded_image)
+        response = self.edition_module.client.chat.completions.create(
+            model=self.edition_module.model,
+            temperature=self.edition_module.temperature,
+            messages=[
+                {
+                    "role": "system",
+                    "content": None,
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": instruction,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_image}"
+                            },
+                        },
+                    ],
+                },
+            ],
+        )
+
     def customize(
         instruction: str,
+        code: str,
         oracle: Callable[
             [Image.Image], tuple[bool, tuple[float, bool, bool], str, Any]
         ],
     ):
-        # TODO
-        pass
+        raise NotImplementedError()  # TODO
+
+
