@@ -3,7 +3,7 @@ import unittest
 import torch
 
 from vif_agent.feature import CodeEdit, CodeImageMapping, MappedCode
-from vif_agent.modules.edition.edition import LLMAgenticEditionModule, ToolCallError
+from vif.falcon.edition import LLMAgenticEditionModule, ToolCallError
 
 
 class TestMappedCode(unittest.TestCase):

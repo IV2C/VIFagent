@@ -37,7 +37,7 @@ class TestMappedCodeIdentify(unittest.TestCase):
     def test_identify_simple(self):
 
         box_id_module = (
-            vif_agent.modules.identification.mapping.BoxIdentificationModule(
+            vif_agent.modules.identification.mapping.ZoneIdentificationModule(
                 client=None,
                 model=None,
             )
