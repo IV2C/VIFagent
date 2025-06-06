@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, PropertyMock
 
 from openai import OpenAI
 
-import vif_agent.modules.identification.oracle
+import vif.falcon.oracle
 from vif_agent.renderer.tex_renderer import TexRenderer
 
 
@@ -36,7 +36,7 @@ class TestMappedCode(unittest.TestCase):
         def original_image_get_boxes(image, client, features, model, temperature):
             return json.load(open("tests/resources/mapped_code/monkey_boxes.json", "r"))
 
-        vif_agent.modules.identification.oracle.get_boxes = original_image_get_boxes
+        vif.falcon.oracle.get_boxes = original_image_get_boxes
 
         client_mock = OpenAI(
             api_key="",
@@ -58,13 +58,14 @@ ANSWER:
 
         cls.instruction = "Increase the size of the monkey's ears by a lot"
         cls.box_oracle_module = (
-            vif_agent.modules.identification.oracle.IdentificationOracleBoxModule(
+            vif.falcon.oracle.OracleBoxModule(
                 model=None, client=client_mock
             )
         )
-        cls.oracle: Callable[[Image.Image], tuple[list[tuple[str, float]], bool]] = (
+        cls.default_oracle: Callable[[Image.Image], tuple[list[tuple[str, float]], bool]] = (
             cls.box_oracle_module.get_oracle(cls.monkey_features,cls.instruction,cls.monkey_image)
         )
+
 
     def test_oracle_right_edit(self):
 
@@ -78,9 +79,9 @@ ANSWER:
         ).read()
         renderer = TexRenderer()
         modified_ears_monkey_image = renderer.from_string_to_image(modified_ears_monkey)
-        vif_agent.modules.identification.oracle.get_boxes = customized_image_get_boxes
+        vif.falcon.oracle.get_boxes = customized_image_get_boxes
 
-        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.oracle(
+        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.default_oracle(
             modified_ears_monkey_image
         )
 
@@ -101,9 +102,9 @@ ANSWER:
         ).read()
         renderer = TexRenderer()
         modified_ears_monkey_image = renderer.from_string_to_image(modified_ears_monkey)
-        vif_agent.modules.identification.oracle.get_boxes = customized_image_get_boxes
+        vif.falcon.oracle.get_boxes = customized_image_get_boxes
 
-        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.oracle(
+        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.default_oracle(
             modified_ears_monkey_image
         )
 
@@ -124,9 +125,9 @@ ANSWER:
         ).read()
         renderer = TexRenderer()
         modified_ears_monkey_image = renderer.from_string_to_image(modified_ears_monkey)
-        vif_agent.modules.identification.oracle.get_boxes = customized_image_get_boxes
+        vif.falcon.oracle.get_boxes = customized_image_get_boxes
 
-        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.oracle(
+        full_condition, (edit_score, added_condition, deleted_condition),_,_ = self.default_oracle(
             modified_ears_monkey_image
         )
 
