@@ -31,12 +31,17 @@ def save_conversation(messages: list,debug_path:str):
                 case "user":
                     conv.write("User:\n")
                     if isinstance(message["content"], list):
-                        image_b64 = message["content"][0]["image_url"]["url"]
-                        write_base64_to_image(
-                            image_b64, ".tmp/edition/" + str(id) + ".png"
-                        )
-                        conv.write(str(id) + "\n")
-                        id += 1
+                        for content in message["content"]:
+                            match content["type"]:
+                                case "text":
+                                    conv.write(content["text"] + "\n")
+                                case "image_url":
+                                    image_b64 = content["image_url"]["url"]
+                                    write_base64_to_image(
+                                        image_b64, ".tmp/edition/" + str(id) + ".png"
+                                    )
+                                    conv.write(str(id) + "\n")
+                                    id += 1
                     else:
                         conv.write(message["content"] + "\n")
 

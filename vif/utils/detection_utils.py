@@ -22,7 +22,7 @@ def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
                     {
                         "type": "text",
                         "text": DETECTION_PROMPT.format(
-                            labels=", ".join(features)
+                            labels=", ".join(['"' + feature + '"' for feature in features])
                         ),
                     },
                     {

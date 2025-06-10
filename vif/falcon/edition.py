@@ -26,7 +26,7 @@ from vif.utils.renderer.tex_renderer import TexRenderer
 class EditionModule:
     def __init__(self, debug=False, debug_folder=".tmp/debug", **kwargs):
         super().__init__(**kwargs)
-        self.debug_folder=debug_folder
+        self.debug_folder = debug_folder
         self.debug = debug
 
     def gen_id(self):
@@ -42,8 +42,10 @@ class EditionModule:
         if not self.debug:
             return
         id_d: str = self.get_id()
-        os.mkdir(os.path.join(self.debug_folder, id_d))
-        os.mkdir(os.path.join(self.debug_folder, id_d, str(step)))
+        if not os.path.exists(os.path.join(self.debug_folder, id_d)):
+            os.mkdir(os.path.join(self.debug_folder, id_d))
+        if not os.path.exists(os.path.join(self.debug_folder, id_d, str(step))):
+            os.mkdir(os.path.join(self.debug_folder, id_d, str(step)))
         with open(
             os.path.join(self.debug_folder, id_d, str(step), var_num + ".tex"), "w"
         ) as debugd:
@@ -128,7 +130,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
         ],
     ):
         self.gen_id()  # update uuid, for debug purposes
-        os.mkdir(os.path.join(self.debug_folder,self.get_id()))
+        os.mkdir(os.path.join(self.debug_folder, self.get_id()))
 
         edited_code = code
         ## Send initial message
@@ -222,7 +224,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
         return edited_code
 
     def save_conversation(self, conv):
-        save_conversation(conv, os.path.join(self.debug_folder,self.get_id()))
+        save_conversation(conv, os.path.join(self.debug_folder, self.get_id()))
 
     def save_debug(self, instruction, code, image, oracle_result, step="", var_num="0"):
         super().save_debug(instruction, code, image, step, var_num)
