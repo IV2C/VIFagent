@@ -1,6 +1,7 @@
-DETECTION_PROMPT: str = """Detect, with no more than 20 items. Output a json list where each entry contains the 2D bounding box in "box_2d" and each of these labels:
-{labels} 
-in a field "label"."""
+DETECTION_PROMPT: str = """Detect, if present, with no more than 20 items. Output a json list where each entry contains the 2D bounding box in "box_2d" and these labels in "label":
+{labels} .
+Only identify the label if it is present.
+"""
 
 PINPOINT_PROMPT = """Given the following list of features:
 `{features}`

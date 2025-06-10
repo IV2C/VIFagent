@@ -22,6 +22,7 @@ search_module = SearchModule(
 edition_module = OracleEditionModule(
     client=client,
     model="gemini-2.0-flash",
+    debug=True
 )
 
 identification_module = OracleBoxModule(

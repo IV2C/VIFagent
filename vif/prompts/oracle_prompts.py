@@ -8,6 +8,7 @@ Your task is to apply the instruction using the following tool:
 
 Additional rules:
 - Ensure to explicitely reason before calling a tool.
+- Never put the line annotations in the content of the edits, as they are just here for reference.
 
 
 """
