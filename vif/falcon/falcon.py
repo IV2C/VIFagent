@@ -2,12 +2,12 @@ from collections.abc import Callable
 from PIL import Image
 from loguru import logger
 
-from vif.CodeMapper.search import SearchModule
 from vif.falcon.edition import OracleEditionModule
 from vif.falcon.oracle import OracleBoxModule
+from vif.feature_search.feature_search import SearchModule
 from vif.prompts.edition_prompts import SYSTEM_PROMPT_CLARIFY
 from vif.utils.image_utils import encode_image
-
+import os
 
 class Falcon:
     def __init__(
@@ -17,7 +17,7 @@ class Falcon:
         search_module: SearchModule = None,
         identification_module: OracleBoxModule = None,
         debug=False,
-        clarify_instruction=True,
+        clarify_instruction=False,
         debug_folder=".tmp/debug",
     ):
         self.edition_module = edition_module
@@ -37,16 +37,15 @@ class Falcon:
         """Applies the instruction to the code
 
         """
-
-
+        # render image
+        base_image = self.code_renderer(code)
         if self.clarify_instruction:
             logger.info("clarifying the instruction")
             instruction = self.apply_clarification(instruction, base_image)
             
         # unifying the code for easier parsing in steps ahead
         code = "\n".join(line.strip() for line in code.split("\n"))
-        # render image
-        base_image = self.code_renderer(code)
+
         # VLM to get list of feature
         logger.info("Searching for features")
 

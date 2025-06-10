@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, PropertyMock
 from openai import OpenAI
 
 import vif.falcon.oracle
-from vif_agent.renderer.tex_renderer import TexRenderer
+from vif.utils.renderer.tex_renderer import TexRenderer
 
 
 class TestMappedCode(unittest.TestCase):

@@ -22,10 +22,13 @@ from loguru import logger
 from vif.utils.image_utils import encode_image
 from vif.utils.renderer.tex_renderer import TexRenderer
 
+
 class EditionModule:
-    def __init__(self):
-        self.gen_id()
-        
+    def __init__(self, debug=False, debug_folder=".tmp/debug", **kwargs):
+        super().__init__(**kwargs)
+        self.debug_folder=debug_folder
+        self.debug = debug
+
     def gen_id(self):
         self._uuid = datetime.datetime.now().strftime(r"%d%m-%H%M%S")
 
@@ -34,8 +37,8 @@ class EditionModule:
 
     def customize(instruction: str):
         pass
-    
-    def save_debug(self, instruction, code, image:Image.Image, step="", var_num="0"):
+
+    def save_debug(self, instruction, code, image: Image.Image, step="", var_num="0"):
         if not self.debug:
             return
         id_d: str = self.get_id()
@@ -50,12 +53,7 @@ class EditionModule:
         image.save(os.path.join(self.debug_folder, id_d, str(step), var_num + ".png"))
 
 
-
-
-
-
-
-class OracleEditionModule(EditionModule,LLMmodule):
+class OracleEditionModule(EditionModule, LLMmodule):
     def __init__(
         self,
         *,
@@ -67,7 +65,7 @@ class OracleEditionModule(EditionModule,LLMmodule):
         max_iterations=5,
         n=1,
         kept_mutants=1,
-        code_renderer=TexRenderer().from_string_to_image
+        code_renderer=TexRenderer().from_string_to_image,
     ):
         self.max_iterations = max_iterations
         self.n = n
@@ -130,6 +128,7 @@ class OracleEditionModule(EditionModule,LLMmodule):
         ],
     ):
         self.gen_id()  # update uuid, for debug purposes
+        os.mkdir(os.path.join(self.debug_folder,self.get_id()))
 
         edited_code = code
         ## Send initial message
@@ -145,6 +144,7 @@ class OracleEditionModule(EditionModule,LLMmodule):
             tools=[modify_code_tool],
         )
         for step in range(self.max_iterations):
+            self.save_conversation(messages)
             messages.append(response.choices[0].message)  # append the llm message
             if response.choices[0].message.tool_calls is not None:
                 for tool_call in response.choices[0].message.tool_calls:
@@ -222,7 +222,7 @@ class OracleEditionModule(EditionModule,LLMmodule):
         return edited_code
 
     def save_conversation(self, conv):
-        save_conversation(conv, self.get_id())
+        save_conversation(conv, os.path.join(self.debug_folder,self.get_id()))
 
     def save_debug(self, instruction, code, image, oracle_result, step="", var_num="0"):
         super().save_debug(instruction, code, image, step, var_num)

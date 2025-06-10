@@ -1,27 +1,29 @@
-from abc import abstractmethod
 import json
 import re
 from PIL import Image
 from loguru import logger
 from openai import OpenAI
 
-from vif.models.module import LLMmodule
-from vif.prompts.search_prompt import FEATURE_SEARCH_PROMPT
+
 from vif.utils.image_utils import encode_image
+from vif.prompts.search_prompt import FEATURE_SEARCH_PROMPT
 
 
 class SearchModule:
-    def __init__(self,*, debug: bool = False, debug_folder: str = ".tmp/debug", **kwargs):
-        super().__init__(**kwargs) 
+    def __init__(
+        self,
+        debug: bool = False,
+        debug_folder: str = ".tmp/debug",
+    ):
         self.debug = debug
         self.debug_folder = debug_folder
+        super().__init__()
 
-    @abstractmethod
     def get_features(self, image: Image.Image) -> list[str]:
         pass
 
 
-class VLMSearchModule(SearchModule,LLMmodule):
+class SearchModule:
     def __init__(
         self,
         *,
@@ -29,15 +31,10 @@ class VLMSearchModule(SearchModule,LLMmodule):
         model: str,
         temperature: float = 0.3,
         debug=False,
-        debug_folder=".tmp/debug",
     ):
-        super().__init__(
-            debug=debug,
-            debug_folder=debug_folder,
-            client=client,
-            model=model,
-            temperature=temperature,
-        )
+        self.client = client
+        self.model= model
+        self.temperature = temperature
 
     def get_features(self, image):
         encoded_image = encode_image(image=image)
@@ -72,3 +69,4 @@ class VLMSearchModule(SearchModule,LLMmodule):
 
         features_match = search_match.group(1)
         return list(json.loads(features_match)["features"])
+    

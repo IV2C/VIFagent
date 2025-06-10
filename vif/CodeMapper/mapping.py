@@ -1,8 +1,4 @@
-from dataclasses import dataclass
-import json
-import math
 import os
-import shutil
 import uuid
 
 
@@ -11,9 +7,9 @@ from PIL import Image
 
 from loguru import logger
 
-from CodeMapper.feature import CodeImageMapping, MappedCode
-from CodeMapper.mutation.tex_mutant_creator import TexMappingMutantCreator, TexMutantCreator
-from vif.utils.detection_utils import get_boxes
+from vif.CodeMapper.feature import CodeImageMapping, MappedCode
+from vif.CodeMapper.mutation.tex_mutant_creator import TexMappingMutantCreator, TexMutantCreator
+from vif.utils.detection_utils import dsim_box, get_boxes
 
 
 class MappingModule:
@@ -24,7 +20,9 @@ class MappingModule:
         debug_folder: str = ".tmp/debug",
     ):
         self.mutant_creator = mutant_creator
-        super().__init__(debug=debug, debug_folder=debug_folder)
+        self.debug = debug
+        self.debug_folder = debug_folder
+        super().__init__()
 
     def identify(
         self, code: str, features: list[str], base_image: Image.Image

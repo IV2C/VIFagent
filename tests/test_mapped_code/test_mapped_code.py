@@ -1,6 +1,8 @@
 import unittest
 
-from vif_agent.feature import CodeEdit, MappedCode
+from vif.CodeMapper.feature import MappedCode
+from vif.models.code import CodeEdit
+
 
 
 class TestMappedCode(unittest.TestCase):
