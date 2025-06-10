@@ -4,7 +4,7 @@ from loguru import logger
 from openai import OpenAI
 from vif.CodeMapper.feature import MappedCode
 from vif.CodeMapper.mapping import ZoneIdentificationModule
-from vif.CodeMapper.search import SearchModule
+from vif.feature_search.feature_search import SearchModule
 from vif.models.code import CodeEdit
 from vif.agent.tool_definitions import *
 from PIL import Image
@@ -16,7 +16,9 @@ from vif.prompts.edition_prompts import (
     IT_PROMPT,
     SYSTEM_PROMPT_CLARIFY,
 )
+from vif.utils.debug_utils import save_conversation
 from vif.utils.image_utils import encode_image
+from vif.utils.renderer.tex_renderer import TexRendererException
 
 
 class FeatureAgent(LLMmodule):
@@ -25,8 +27,8 @@ class FeatureAgent(LLMmodule):
         *,
         client: OpenAI,
         model: str,
-        temperature: float = 0.0,
         code_renderer: Callable[[str], Image.Image],
+        temperature: float = 0.0,
         search_module: SearchModule = None,
         identification_module: ZoneIdentificationModule = None,
         debug=False,
@@ -72,8 +74,8 @@ class FeatureAgent(LLMmodule):
     def render_code(self) -> Image.Image:
         try:
             rendered_image = self.code_renderer(self.mapped_code.code)
-        except Exception as e:
-            raise ToolCallError(str(e))
+        except TexRendererException as e:
+            raise ToolCallError(e.extract_error())
         return rendered_image
 
     def modify_code(self, edits: list) -> str:
@@ -125,6 +127,7 @@ class FeatureAgent(LLMmodule):
         )
         # handling tool calls
         while True:
+            save_conversation(messages, ".tmp/edition")
             messages.append(completion.choices[0].message)  # append the Model's message
             if completion.choices[0].message.tool_calls is not None:
                 for tool_call in completion.choices[0].message.tool_calls:

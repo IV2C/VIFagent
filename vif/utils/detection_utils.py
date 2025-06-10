@@ -1,14 +1,12 @@
 import json
 import math
-import os
 import re
-import shutil
 
-from loguru import logger
-from build.lib.vif_agent.prompt import DETECTION_PROMPT
-from vif.utils.debug_utils import adjust_bbox, encode_image, mse
 from PIL import Image
 from openai import OpenAI
+
+from vif.prompts.identification_prompts import DETECTION_PROMPT
+from vif.utils.image_utils import adjust_bbox, encode_image, mse
 
 
 def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):

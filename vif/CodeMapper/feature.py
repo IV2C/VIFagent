@@ -84,7 +84,8 @@ class MappedCode:
         Args:
             edits (list[CodeEdit]): The list of edits to apply to the code
         """
-        return apply_edits(self.code, edits)
+        self.code = apply_edits(self.code, edits)
+        return self.code
 
     def get_annotated(self):
         """Returns the code annotated with line numbers"""

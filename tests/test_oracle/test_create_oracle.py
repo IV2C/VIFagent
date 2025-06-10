@@ -22,7 +22,7 @@ class TestCreateOracle(unittest.TestCase):
         mock_choice.message.content = """
 ANSWER:
 []
-[]
+["test feature"]
 ["left grey eye of monkey"]"""
         monkey_features = [
             "light blue background circle",

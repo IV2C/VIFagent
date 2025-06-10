@@ -2,8 +2,8 @@ import unittest
 import json
 from PIL import Image
 import numpy as np
-from vif_agent.feature import CodeImageMapping
-import vif_agent.modules.identification.mapping
+from vif.CodeMapper.mapping import CodeImageMapping
+import vif.CodeMapper.mapping
 
 
 class TestMappedCodeIdentify(unittest.TestCase):
@@ -32,12 +32,12 @@ class TestMappedCodeIdentify(unittest.TestCase):
         def new_get_boxes(image, client, features, model, temperature):
             return json.load(open("tests/resources/mapped_code/monkey_boxes.json", "r"))
 
-        vif_agent.modules.identification.mapping.get_boxes = new_get_boxes
+        vif.CodeMapper.mapping.get_boxes = new_get_boxes
 
     def test_identify_simple(self):
 
         box_id_module = (
-            vif_agent.modules.identification.mapping.ZoneIdentificationModule(
+            vif.CodeMapper.mapping.ZoneIdentificationModule(
                 client=None,
                 model=None,
             )
