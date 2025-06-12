@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from enum import Enum
 import math
 from typing import Any
 
@@ -102,15 +104,16 @@ class OracleBoxModule(LLMmodule):
     ) -> Callable[[Image.Image], tuple[bool, tuple[float, bool, bool], str, Any]]:
         logger.info("Creating Oracle")
 
-        # The three tasks are independent and can be executed in parallel
+        original_detected_boxes = self.detect_feat_boxes(features, base_image)
+        # first filtering the features depending on wether they have been detected in the original image
+        features = list(set([box["label"] for box in original_detected_boxes]))
+        # The two tasks are independent and can be executed in parallel
         with ThreadPoolExecutor() as executor:
             f1 = executor.submit(self.get_featureset, features, instruction, base_image)
             f2 = executor.submit(self.compute_selfembedding, features)
-            f3 = executor.submit(self.detect_feat_boxes, features, base_image)
 
             features_to_edit, features_to_delete, features_to_add = f1.result()
             _ = f2.result()
-            original_detected_boxes = f3.result()
 
         # Removing the added features if they are too close to an already existing feature, using an ambedding model
         if len(features_to_add) > 0 and not (
@@ -127,18 +130,19 @@ class OracleBoxModule(LLMmodule):
             ]
 
         @staticmethod
-        def oracle(
+        def feature_oracle(
             image: Image.Image,
-        ) -> tuple[bool, tuple[float, bool, bool], str, Any]:
-            """Assert that an image solution is a right solution
+        ) -> FeatureOracleResponse:
+            """Assert that an image solution has edited the right features
 
             Args:
                 image (Image.Image): image customized by the LLM
 
             Returns:
-                tuple[bool,tuple[float,bool,bool],str,Any]: tuple containing a boolean for whether the proposed solution is right, and another tuple with the edit_score(float), added_condition(bool) and delete_condition(bool), and finally the report and a debug object
+                FeatureOracleResponse: Object containing informations about the feature response
             """
 
+            
             customized_detected_boxes = get_boxes(
                 image,
                 self.client,
@@ -146,78 +150,38 @@ class OracleBoxModule(LLMmodule):
                 self.model,
                 self.temperature,
             )
-            customized_detected_boxes_dict = {
-                box["label"]: box["box_2d"] for box in customized_detected_boxes
-            }
-
-            def get_score(
-                boxes: list[tuple[int, int, int, int]],
-                image_1: Image.Image,
-                image_2: Image.Image,
-            ):
-
-                # first "union" score
-                cropped_im1 = Image.new("RGB", image_1.size, (0, 0, 0))
-                cropped_im2 = Image.new("RGB", image_2.size, (0, 0, 0))
-                for box in boxes:
-                    region = image_1.crop(box)
-                    cropped_im1.paste(region, box)
-                    region2 = image_2.crop(box)
-                    cropped_im2.paste(region2, box)
-                # computing the number of pixel not black and dividing the squarred error by it
-                cropped_im1.save("debug_cropped1.png")
-                cropped_im2.save("debug_cropped2.png")
-                used_pixels = get_used_pixels(cropped_im1)
-                boxes_union_mse = se(cropped_im1, cropped_im2) / used_pixels
-
-                # Second "anti-union" score
-                hid_im1 = image_1.copy()
-                hid_im2 = image_2.copy()
-                for box in boxes:
-                    region = image_2.crop(box)
-                    crop_size = (box[2] - box[0], box[3] - box[1])
-                    hid_im1.paste(
-                        Image.new("RGB", crop_size, (0, 0, 0)),
-                        box,
-                    )
-                    hid_im2.paste(
-                        Image.new("RGB", crop_size, (0, 0, 0)),
-                        box,
-                    )  # put black image on the boxes
-                # this time dividing by the prod of the size minus the number of "anti-used" pixels
-                hid_im1.save("debug_hidden1.png")
-                hid_im2.save("debug_hidden2.png")
-                box_antiunion_mse = se(hid_im1, hid_im2) / (
-                    math.prod(image_1.size) - used_pixels
-                )
-                return float(boxes_union_mse / (1 + box_antiunion_mse))
+            customized_detected_boxes_labels = [
+                box["label"] for box in customized_detected_boxes
+            ]
 
             # computing scores and conditions
-
+            ##  edit score
             if len(features_to_edit) == 0:
                 edit_condition = True
                 edit_score = -1
             else:
-                features_to_edit_boxes = [
-                    box["box_2d"]
-                    for box in original_detected_boxes + customized_detected_boxes
-                    if box["label"] in features_to_edit
-                ]
-                edit_score = get_score(features_to_edit_boxes, base_image, image)
-                edit_condition = edit_score > 0.1  # TODO adjust parameter
 
+                edit_score = OracleBoxModule.get_score(
+                    features_to_edit,
+                    original_detected_boxes,
+                    customized_detected_boxes,
+                    base_image,
+                    image,
+                )
+                edit_condition = edit_score > 0.1  # TODO adjust parameter
+            ## add score
             not_added_features = [
                 feature_to_add
                 for feature_to_add in features_to_add
-                if feature_to_add not in customized_detected_boxes_dict
+                if feature_to_add not in customized_detected_boxes_labels
             ]
 
             added_condition = len(not_added_features) == 0
-
+            ## removed score
             not_removed_features = [
                 feature_to_delete
                 for feature_to_delete in features_to_delete
-                if feature_to_delete in customized_detected_boxes_dict
+                if feature_to_delete in customized_detected_boxes_labels
             ]
 
             deleted_condition = len(not_removed_features) == 0
@@ -229,8 +193,8 @@ class OracleBoxModule(LLMmodule):
                 "to_add": features_to_add,
                 "to_delete": features_to_delete,
                 "to_edit": features_to_edit,
-                "original_boxes": customized_detected_boxes_dict,
-                "customized_boxes": customized_detected_boxes_dict,
+                "original_boxes": customized_detected_boxes,
+                "customized_boxes": customized_detected_boxes,
             }
 
             # creating report
@@ -253,11 +217,161 @@ class OracleBoxModule(LLMmodule):
                 )
             )
 
-            return (
+            return FeatureOracleResponse(
                 full_condition,
                 (edit_score, added_condition, deleted_condition),
                 full_report,
                 debug_object,
             )
 
+        @staticmethod
+        def edit_oracle(
+            image: Image.Image,
+        ) -> EditOracleResponse:
+            """verifies that an image satifies an edit, the image normally has the proper features added/deleted/modified
+
+            Args:
+                image (Image.Image): The image to test
+
+            Returns:
+                EditOracleResponse: A response object containing information about the edit conditions
+            """
+
+            pass
+
+        @staticmethod
+        def oracle(
+            image: Image.Image,
+        ) -> FullOracleResponse:
+            feature_res = feature_oracle(image)
+            edit_res = None
+            if feature_res.condition:
+                edit_res = edit_oracle(image)
+
+            full_condition = feature_res.condition and edit_res.condition
+            return FullOracleResponse(full_condition, feature_res, edit_res)
+
         return oracle
+
+    @staticmethod
+    def get_score(
+        features_to_edit: list[str],
+        original_detected_boxes,
+        customized_detected_boxes,
+        image_1: Image.Image,
+        image_2: Image.Image,
+    ) -> tuple[float, str]:
+        """computes an edit score based on the boxes detected in both images, and the list of features to edit.
+
+        Returns:
+            tuple[float,EditReason,str]: The score, and open string feedback
+        """
+
+        # ensure all features are there in the modified image
+        customized_detected_features = set(
+            [box["label"] for box in customized_detected_boxes]
+        )
+
+        features_to_edit_not_detected = [
+            '"' + feat_to_edit + '"'
+            for feat_to_edit in features_to_edit
+            if feat_to_edit not in customized_detected_features
+        ]
+
+        if len(features_to_edit_not_detected) > 0:
+            feedback = f"The feature(s) {",".join(features_to_edit_not_detected)} were not detected in the modified image."
+            return tuple(0.0, feedback)
+
+        # Getting the boxes to edit
+        get_box_to_edit = lambda boxes: [
+            box for box in boxes if box["label"] in features_to_edit
+        ]
+        get_box_to_not_edit = lambda boxes: [
+            box for box in boxes if box["label"] not in features_to_edit
+        ]
+
+        customized_box_to_edit = get_box_to_edit(customized_detected_boxes)
+        customized_boxes_to_not_edit = get_box_to_not_edit(customized_detected_boxes)
+        original_box_to_edit = get_box_to_edit(customized_detected_boxes)
+        original_boxes_to_not_edit = get_box_to_not_edit(customized_detected_boxes)
+        # encompass feature location difference
+
+        # note:probably better to make the box to edit black in both image(the same way I did before) and to compute phash after
+        pass
+
+    @staticmethod
+    def get_score_size_dependent(
+        boxes: list[tuple[int, int, int, int]],
+        image_1: Image.Image,
+        image_2: Image.Image,
+    ):
+        """First implementation of image dependence
+
+        Args:
+            boxes (list[tuple[int, int, int, int]]): _description_
+            image_1 (Image.Image): _description_
+            image_2 (Image.Image): _description_
+
+        Returns:
+            _type_: _description_
+        """
+
+        # first "union" score
+        cropped_im1 = Image.new("RGB", image_1.size, (0, 0, 0))
+        cropped_im2 = Image.new("RGB", image_2.size, (0, 0, 0))
+        for box in boxes:
+            region = image_1.crop(box)
+            cropped_im1.paste(region, box)
+            region2 = image_2.crop(box)
+            cropped_im2.paste(region2, box)
+        # computing the number of pixel not black and dividing the squarred error by it
+        cropped_im1.save("debug_cropped1.png")
+        cropped_im2.save("debug_cropped2.png")
+        used_pixels = get_used_pixels(cropped_im1)
+        boxes_union_mse = se(cropped_im1, cropped_im2) / used_pixels
+
+        # Second "anti-union" score
+        hid_im1 = image_1.copy()
+        hid_im2 = image_2.copy()
+        for box in boxes:
+            region = image_2.crop(box)
+            crop_size = (box[2] - box[0], box[3] - box[1])
+            hid_im1.paste(
+                Image.new("RGB", crop_size, (0, 0, 0)),
+                box,
+            )
+            hid_im2.paste(
+                Image.new("RGB", crop_size, (0, 0, 0)),
+                box,
+            )  # put black image on the boxes
+        # this time dividing by the prod of the size minus the number of "anti-used" pixels
+        hid_im1.save("debug_hidden1.png")
+        hid_im2.save("debug_hidden2.png")
+        box_antiunion_mse = se(hid_im1, hid_im2) / (
+            math.prod(image_1.size) - used_pixels
+        )
+        return float(boxes_union_mse / (1 + box_antiunion_mse))
+
+
+@dataclass
+class FeatureOracleResponse:
+    """Response of the feature oracle, containing the condition, a tuple with the edit score, add condition, and delete condition. A report automatically generated, and a debug object"""
+
+    condition: bool
+    condition_tuple: tuple[float, bool, bool]
+    full_report: str
+    debug_obj: Any
+
+
+@dataclass
+class EditOracleResponse:
+    """Response of the edit oracle"""
+
+    condition: bool
+
+
+@dataclass
+class FullOracleResponse:
+    condition: bool
+    feature_oracle_response: FeatureOracleResponse
+    edit_oracle_response: EditOracleResponse = None
