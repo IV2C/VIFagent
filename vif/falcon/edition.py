@@ -1,6 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 import PIL.Image
+from vif.falcon.oracle import FullOracleResponse
 from vif.models.code import CodeEdit
 from vif.models.misc import ToolCallError
 from vif.models.module import LLMmodule
@@ -20,7 +21,7 @@ import datetime
 from loguru import logger
 
 from vif.utils.image_utils import encode_image
-from vif.utils.renderer.tex_renderer import TexRenderer
+from vif.utils.renderer.tex_renderer import TexRenderer, TexRendererException
 
 
 class EditionModule:
@@ -29,8 +30,12 @@ class EditionModule:
         self.debug_folder = debug_folder
         self.debug = debug
 
-    def gen_id(self):
+    def initialize_debug(self):
         self._uuid = datetime.datetime.now().strftime(r"%d%m-%H%M%S")
+        logger.warning(
+            f"Debug is activated, debug folder is {os.path.join(self.debug_folder, self._uuid)}"
+        )
+        os.mkdir(os.path.join(self.debug_folder, self._uuid))
 
     def get_id(self) -> str:
         return self._uuid
@@ -88,7 +93,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
                 CodeEdit(edit["start"], edit["end"], edit["content"]) for edit in edits
             ]
             edited_code = apply_edits(code, edits)
-            annotated_code = get_annotated_code(code)
+            annotated_code = get_annotated_code(edited_code)
         except ValueError as e:
             raise ToolCallError(str(e))
         return edited_code, annotated_code
@@ -125,16 +130,25 @@ class OracleEditionModule(EditionModule, LLMmodule):
         self,
         instruction: str,
         code: str,
-        oracle: Callable[
-            [Image.Image], tuple[bool, tuple[float, bool, bool], str, Any]
-        ],
+        oracle: Callable[[Image.Image], FullOracleResponse],
     ):
-        self.gen_id()  # update uuid, for debug purposes
-        os.mkdir(os.path.join(self.debug_folder, self.get_id()))
+        self.initialize_debug()  # update uuid, for debug purposes
 
         edited_code = code
         ## Send initial message
-        base_image = self.code_renderer(code)
+        base_image: Image.Image = self.code_renderer(code)
+
+        """ DEBUG """
+        if self.debug:
+            with open(
+                os.path.join(self.debug_folder, self.get_id(), "initial.tex"),
+                "w",
+            ) as debugd:
+                debugd.write(code)
+            base_image.save(
+                os.path.join(self.debug_folder, self.get_id(), "initial.png")
+            )
+
         messages = self.initial_messages(
             instruction=instruction, initial_code=code, image=base_image
         )
@@ -169,28 +183,33 @@ class OracleEditionModule(EditionModule, LLMmodule):
                         }
                     )
             # run oracle
-            edited_image = self.code_renderer(edited_code)
-            (
-                full_condition,
-                _,
-                report,
-                debug_oracle_obj,
-            ) = oracle(edited_image)
+            try:
+                edited_image = self.code_renderer(edited_code)
 
-            self.save_debug(
-                instruction=instruction,
-                code=edited_code,
-                image=edited_image,
-                step=step,
-                oracle_result=debug_oracle_obj,
-                var_num="0",
-            )
-
+                feature_res = oracle(
+                    edited_image
+                ).feature_oracle_response  # TODO update with full oracle response
+                report = feature_res.full_report
+                self.save_debug(
+                    instruction=instruction,
+                    code=edited_code,
+                    image=edited_image,
+                    step=step,
+                    oracle_result=feature_res.debug_obj,
+                    var_num="0",
+                )
+            except TexRendererException as tre:
+                feature_res.condition = False
+                report = "Tex failed to compile, error: " + tre.extract_error()
+            except ValueError as ve:
+                feature_res.condition = False
+                report = str(ve)
             # return if oracle satisfied
-            if full_condition:
+            if feature_res.condition:
+                self.save_conversation(messages)
                 return edited_code
 
-            logger.debug("condition not yet satified, continuing edition")
+            logger.info("condition not yet satified, continuing edition")
 
             # iteration request, send report to LLM
             encoded_image = encode_image(edited_image)
@@ -211,7 +230,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
                     ],
                 }
             )
-            logger.debug("Send the report and image back to the LLM")
+            logger.info("Send the report and image back to the LLM")
             response = self.client.chat.completions.create(
                 model=self.model,
                 temperature=self.temperature,
@@ -219,7 +238,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
                 tools=[modify_code_tool],
             )
 
-        self.save_conversation(messages=messages)
+        self.save_conversation(messages)
         # stop on sufficient edit
         return edited_code
 
