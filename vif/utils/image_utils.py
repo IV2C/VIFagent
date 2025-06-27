@@ -2,6 +2,7 @@ import base64
 from concurrent.futures import Future, ThreadPoolExecutor
 from io import BytesIO
 import math
+from typing import Sequence
 from PIL import Image
 import numpy as np
 
@@ -72,22 +73,76 @@ import cv2 as cv
 import numpy.typing as npt
 
 
+### Template matching methods
+def get_template_matches_multiscale(
+    template: Image.Image,
+    image: npt.NDArray,
+    threshold: float = 0.1,
+    scales: list[float] = [i / 100 for i in range(10, 300, 1)],
+) -> list[tuple[int, int, int, int]]:
+    """Identifies templates in an image using multiscale matching."""
+    method = cv.TM_SQDIFF_NORMED
+    image = cv.Laplacian(image, 0)
+    imageB, imageG, imageR = cv.split(image)
+
+    template_np = np.array(template)
+    template_np = cv.cvtColor(template_np, cv.COLOR_RGB2BGR)
+    template_np = cv.Laplacian(template_np, 0)
+
+    boxes = []
+
+    for scale in scales:
+        # Resize template
+        scaled_template = cv.resize(
+            template_np, None, fx=scale, fy=scale, interpolation=cv.INTER_LINEAR
+        )
+        th, tw = scaled_template.shape[:2]
+        if th > image.shape[0] or tw > image.shape[1]:
+            continue  # Skip oversized templates
+
+        # Split channels
+        tB, tG, tR = cv.split(scaled_template)
+
+        # Match on each channel
+        resB = cv.matchTemplate(imageB, tB, method)
+        resG = cv.matchTemplate(imageG, tG, method)
+        resR = cv.matchTemplate(imageR, tR, method)
+        res = resB + resG + resR
+
+        loc = np.where(res <= threshold)
+        for pt in zip(*loc[::-1]):
+            boxes.append((pt[0], pt[1], pt[0] + tw, pt[1] + th))
+
+    return box_similarity_removal(boxes)
+
+
 def get_template_matches(
-    template: Image.Image, image: npt.NDArray
+    template: Image.Image, image: npt.NDArray, threshold: float = 0.1
 ) -> list[tuple[int, int, int, int]]:
     """Identifies templates in an image
 
     Args:
         template (Image.Image): the template to identify in the image.
-        image (Image.Image): the image to identify the template in.
+        image (npt.NDArray): the image to identify the template in. In a opencv NDArray BGR format.
     """
     w = template.width
     h = template.height
     method = cv.TM_SQDIFF_NORMED  # best for exact pattern match
     template = cv.cvtColor(np.array(template), cv.COLOR_RGB2BGR)
-    # Apply template Matching
-    res = cv.matchTemplate(image, template, method)
-    threshold = 0.1  # lower is better
+    template = cv.Laplacian(template, 0)
+    image = cv.Laplacian(image, 0)
+
+    # getting each color component of the image
+    imageB, imageG, imageR = cv.split(image)
+    TemplateB, TemplateG, TemplateR = cv.split(template)
+
+    # Apply template Matching on all components
+    resB = cv.matchTemplate(imageB, TemplateB, method)
+    resG = cv.matchTemplate(imageG, TemplateG, method)
+    resR = cv.matchTemplate(imageR, TemplateR, method)
+
+    res = resB + resG + resR
+
     loc = np.where(res <= threshold)
 
     detected_boxes: list[tuple[int, int, int, int]] = []
@@ -95,6 +150,101 @@ def get_template_matches(
         detected_boxes.append((pt[0], pt[1], pt[0] + w, pt[1] + h))
 
     return box_similarity_removal(detected_boxes)
+
+
+def get_feature_matches(
+    template: Image.Image, image: npt.NDArray, threshold: float = 100
+) -> tuple[Sequence[cv.DMatch], Sequence[cv.KeyPoint], Sequence[cv.KeyPoint]]:
+    """Identifies templates in an image
+
+    Args:
+        template (Image.Image): the template to identify in the image.
+        image (npt.NDArray): the image to identify the template in. In a opencv NDArray BGR format.
+    """
+
+    template_cv = cv.cvtColor(np.array(template), cv.COLOR_RGB2GRAY)
+    image_gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+
+    orb = cv.ORB.create()
+
+    kp1, des1 = orb.detectAndCompute(template_cv, None)
+    kp2, des2 = orb.detectAndCompute(image_gray, None)
+
+    # create BFMatcher object
+    bf = cv.BFMatcher()
+    matches = bf.match(des1, des2)
+    print(matches)
+    matches = sorted(matches, key=lambda m: m.distance)
+    good_matches = [m for m in matches if m.distance < threshold]
+
+    return good_matches, kp1, kp2, image_gray, template_cv
+
+
+def get_feature_matches(
+    modified_image: Image.Image,
+    template_box: tuple[int, int, int, int],
+    image: npt.NDArray,
+    threshold: float = 100,
+) -> tuple[Sequence[cv.DMatch], Sequence[cv.KeyPoint], Sequence[cv.KeyPoint]]:
+    """Identifies templates in an image
+
+    Args:
+        template (Image.Image): the template to identify in the image.
+        image (npt.NDArray): the image to identify the template in. In a opencv NDArray BGR format.
+    """
+
+    modified_cv = cv.cvtColor(np.array(modified_image), cv.COLOR_RGB2GRAY)
+    image_gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+
+    # template_mask = np.zeros(image.shape[:2])
+    # template_mask[
+    #     template_box[0] : template_box[2], template_box[1] : template_box[3]
+    # ] = 255
+    # template_mask = template_mask.astype(np.uint8)
+
+    orb = cv.ORB.create()
+    kp1, des1 = orb.detectAndCompute(
+        modified_cv, None
+    )  # not using mask on modified image, because shape could be different
+    kp2, des2 = orb.detectAndCompute(image_gray, None)
+
+    # create BFMatcher object
+    bf = cv.BFMatcher()
+    matches = bf.match(des1, des2, None)
+    matches = sorted(matches, key=lambda m: m.distance)
+    good_matches = [m for m in matches if m.distance < threshold]
+
+    x1, y1, x2, y2 = template_box
+    good_matches = [
+        m for m in matches
+        if x1 < kp2[m.trainIdx].pt[0] < x2 and y1 < kp2[m.trainIdx].pt[1] < y2
+    ]
+
+    return good_matches, kp1, kp2, image_gray, modified_cv
+
+
+def get_template_matches_perfect(
+    template: Image.Image, image: npt.NDArray
+) -> list[tuple[int, int, int, int]]:
+    """Same as get_template_matching(...), but with exact pixel equality"""
+    template = cv.cvtColor(np.array(template), cv.COLOR_RGB2BGR)
+    if template.shape[2] == 4:
+        template = template[:, :, :3]  # remove alpha if present
+
+    h, w, _ = template.shape
+
+    if image.shape[2] == 4:
+        image = image[:, :, :3]
+
+    # slide template over image and compare slices
+    matches = []
+    for y in range(image.shape[0] - h + 1):
+        for x in range(image.shape[1] - w + 1):
+            patch = image[y : y + h, x : x + w]
+            if np.array_equal(patch, template):
+                matches.append((x, y, x + w, y + h))
+
+    return box_similarity_removal(matches)
 
 
 def parallel_template_match(
@@ -149,4 +299,26 @@ def IoU(boxA: tuple[int, int, int, int], boxB: tuple[int, int, int, int]):
     return iou
 
 
-# TODO
+def box_size_increase(
+    box: tuple[int, int, int, int], max_image: Image.Image, ratio: float = 1.3
+) -> tuple[int, int, int, int]:
+    """image-dependent box size increase
+
+    Args:
+        box (tuple[int, int, int, int]): box to increase
+        max_image (Image.Image): reference image
+        ratio (float, optional): ratio to use for increasing the box sie 1 is unchanged,2 is the image size. Defaults to 1.3.
+
+    Returns:
+        tuple[int, int, int, int]: _description_
+    """
+    ratio = min(max(ratio, 1), 2)
+    w = max_image.width
+    h = max_image.height
+    ratio = ratio - 1
+    return (
+        (box[0] - (box[0]) * ratio),
+        (box[1] - (box[1]) * ratio),
+        (box[2] + (w - box[2]) * ratio),
+        (box[3] + (h - box[3]) * ratio),
+    )
