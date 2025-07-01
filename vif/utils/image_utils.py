@@ -1,4 +1,5 @@
 import base64
+from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor
 from io import BytesIO
 import math
@@ -73,7 +74,10 @@ import cv2 as cv
 import numpy.typing as npt
 
 
-### Template matching methods
+
+
+
+### Template matching methods(useless at the end of the day)
 def get_template_matches_multiscale(
     template: Image.Image,
     image: npt.NDArray,
@@ -203,10 +207,10 @@ def get_feature_matches(
     # template_mask = template_mask.astype(np.uint8)
 
     orb = cv.ORB.create()
-    kp1, des1 = orb.detectAndCompute(
+    kp1, des1 = orb.detectAndCompute(image_gray, None)
+    kp2, des2 = orb.detectAndCompute(
         modified_cv, None
     )  # not using mask on modified image, because shape could be different
-    kp2, des2 = orb.detectAndCompute(image_gray, None)
 
     # create BFMatcher object
     bf = cv.BFMatcher()
@@ -215,12 +219,93 @@ def get_feature_matches(
     good_matches = [m for m in matches if m.distance < threshold]
 
     x1, y1, x2, y2 = template_box
+
+    """ DEBUG """
+    # final_matches = []
+    # for m in good_matches:
+    #     if x1 <= kp2[m.trainIdx].pt[0] <= x2 and y1 <= kp2[m.trainIdx].pt[1] <= y2:
+    #         final_matches.append(m)
+    #     debug = cv.drawKeypoints(image_gray, [kp2[m.trainIdx]], None, color=(0,255,0), flags=0)
+    #     debug = cv.rectangle(debug, (x1, y1), (x2, y2), (36, 255, 12), 1)
+    #     cv.imwrite(".tmp/debug/delete.png",debug)
+    """"""
+
     good_matches = [
-        m for m in matches
-        if x1 < kp2[m.trainIdx].pt[0] < x2 and y1 < kp2[m.trainIdx].pt[1] < y2
+        m
+        for m in good_matches
+        if x1 <= kp1[m.queryIdx].pt[0] <= x2 and y1 <= kp1[m.queryIdx].pt[1] <= y2
     ]
 
+    good_matches = get_repr_cluster(good_matches, kp1, kp2)
+
     return good_matches, kp1, kp2, image_gray, modified_cv
+
+
+chimp_image = Image.open(".tmp/manual_tests/test_template_match/image.png")
+chimp_modified_image = Image.open(".tmp/manual_tests/test_template_match/modified.png")
+chimp_modified_image_wide = Image.open(
+    ".tmp/manual_tests/test_template_match/modified_wide.png"
+)
+image_original_cv = cv.cvtColor(np.array(chimp_image), cv.COLOR_RGB2BGR)
+image_modified_cv = cv.cvtColor(np.array(chimp_modified_image), cv.COLOR_RGB2BGR)
+image_modified_wide_cv = cv.cvtColor(
+    np.array(chimp_modified_image_wide), cv.COLOR_RGB2BGR
+)
+
+
+def get_repr_cluster(matches: list, kp1: list, kp2: list) -> list:
+    """Takes as input a list of feature matches, returns a cluster containing only the features that remain shape between eachother in the train image
+
+    Args:
+        matches (list): original match list
+        kp1 (list): feature query keypoints
+        kp2 (list): feature train keypoints
+
+    Returns:
+        list: filtered match list with the cluster only
+    """
+
+
+    coords = lambda m: (
+        round(kp1[m.queryIdx].pt[0],0),
+        round(kp1[m.queryIdx].pt[1],0),
+        round(kp2[m.trainIdx].pt[0],0),
+        round(kp2[m.trainIdx].pt[1],0),
+    )
+
+    clusters = defaultdict(set)
+    i = 0
+    while i < len(matches):
+        m1 = matches[i]
+        x1, y1, x1p, y1p = coords(m1)
+        for j in range(i + 1, len(matches)):
+            m2 = matches[j]
+            x2, y2, x2p, y2p = coords(m2)
+
+            # computing Rx and Ry ratios only if x1!=x2 and y1 != y2
+            if x1p != x2p and y1p != y2p:
+                Rx = abs(x1 - x2) / abs(x1p - x2p)
+                Ry = abs(y1 - y2) / abs(y1p - y2p)
+                key = tuple(round(x, 5) for x in (Rx, Ry))
+                if any(k==0.0 for k in key):
+                    continue
+                clusters[key].add(m1)  # redundant
+                clusters[key].add(m2)
+
+                # """ DEBUG """
+                # debug = cv.drawMatches(
+                #     image_original_cv,
+                #     kp1,
+                #     image_modified_wide_cv,
+                #     kp2,
+                #     list(clusters[key]),
+                #     None,
+                #     flags=2,
+                # )
+                # cv.imwrite(".tmp/debug/delete.png", debug)
+        i += 1
+
+    return list(max(clusters.values(), key=lambda x: len(x)))
 
 
 def get_template_matches_perfect(
