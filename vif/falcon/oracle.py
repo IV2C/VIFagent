@@ -1,3 +1,4 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from enum import Enum
 import math
@@ -16,7 +17,9 @@ import ast
 from sentence_transformers import SentenceTransformer
 from concurrent.futures import ThreadPoolExecutor
 
-from vif.utils.image_utils import encode_image, get_used_pixels, se
+from vif.utils.image_utils import adjust_bbox, encode_image, get_used_pixels, se
+
+import imagehash
 
 
 class OracleBoxModule(LLMmodule):
@@ -142,7 +145,6 @@ class OracleBoxModule(LLMmodule):
                 FeatureOracleResponse: Object containing informations about the feature response
             """
 
-            
             customized_detected_boxes = get_boxes(
                 image,
                 self.client,
@@ -193,7 +195,7 @@ class OracleBoxModule(LLMmodule):
                 "to_add": features_to_add,
                 "to_delete": features_to_delete,
                 "to_edit": features_to_edit,
-                "original_boxes": customized_detected_boxes,
+                "original_boxes": original_detected_boxes,
                 "customized_boxes": customized_detected_boxes,
             }
 
@@ -254,50 +256,140 @@ class OracleBoxModule(LLMmodule):
         return oracle
 
     @staticmethod
+    def ensure_match_ori_custom(
+        all_feature_lists: tuple[list[str], list[str], list[str]],
+        original_detected_labels: set[str],
+        customized_detected_labels: set[str],
+    ) -> tuple[float, str]:
+        """Ensures that the detected boxes in the custom image satify the following condition
+        detected_labels-features_to_add = original_labels-feature_to_remove
+
+        """
+        features_to_edit, features_to_add, features_to_remove = all_feature_lists
+
+        # ensure all features to edit are there in the modified image
+        features_to_edit_not_detected = [
+            '"' + feat_to_edit + '"'
+            for feat_to_edit in features_to_edit
+            if feat_to_edit not in customized_detected_labels
+        ]
+
+        if len(features_to_edit_not_detected) > 0:
+            feedback = f"The feature(s) {",".join(features_to_edit_not_detected)} was supposed to be edited, but was not detected in the customized image."
+            return tuple(0.0, feedback)
+
+        # ensure that the same features have been detected in the original and customized image
+        customized_labels_sub = customized_detected_labels.difference(
+            set(features_to_add)
+        )
+        original_label_sub = original_detected_labels.difference(
+            set(features_to_remove)
+        )
+
+        if not_in_customized := original_label_sub - customized_labels_sub != set():
+            nc_f = ['"' + nc + '"' for nc in not_in_customized]
+            feedback = (
+                f"The feature(s) {",".join(nc_f)} were not detected in the customized image, they must have been hidden or altered."
+                if len(nc_f) > 1
+                else f"The feature {nc_f[0]} was not detected in the customized image, It must have been hidden or altered."
+            )
+            return tuple(0.0, feedback)
+        return None
+
+    @staticmethod
     def get_score(
-        features_to_edit: list[str],
-        original_detected_boxes,
-        customized_detected_boxes,
+        all_feature_lists: tuple[list[str], list[str], list[str]],
+        original_detected_boxes: list[tuple],
+        customized_detected_boxes: list[tuple],
         image_1: Image.Image,
         image_2: Image.Image,
     ) -> tuple[float, str]:
         """computes an edit score based on the boxes detected in both images, and the list of features to edit.
 
+        Note: It is a precondition of this function that
+
         Returns:
             tuple[float,EditReason,str]: The score, and open string feedback
         """
 
-        # ensure all features are there in the modified image
-        customized_detected_features = set(
+        features_to_edit = all_feature_lists[0]
+
+        customized_detected_labels = set(
             [box["label"] for box in customized_detected_boxes]
         )
+        original_detected_labels = set(
+            [box["label"] for box in original_detected_boxes]
+        )
 
-        features_to_edit_not_detected = [
-            '"' + feat_to_edit + '"'
-            for feat_to_edit in features_to_edit
-            if feat_to_edit not in customized_detected_features
-        ]
+        if (
+            return_value := OracleBoxModule.ensure_match_ori_custom(
+                all_feature_lists, original_detected_labels, customized_detected_labels
+            )
+            != NotImplemented
+        ):
+            return return_value
 
-        if len(features_to_edit_not_detected) > 0:
-            feedback = f"The feature(s) {",".join(features_to_edit_not_detected)} were not detected in the modified image."
-            return tuple(0.0, feedback)
+        # asjudting the boxes to the images
+        original_features_cropped = {
+            box["label"]: adjust_bbox(box, image_1)["box_2d"] #TODO make a copy before modifying
+            for box in original_detected_boxes
+        }
+
+        customized_features_cropped = {
+            box["label"]: adjust_bbox(box, image_2)["box_2d"]#TODO make a copy before modifying
+            for box in customized_detected_boxes
+        }
 
         # Getting the boxes to edit
         get_box_to_edit = lambda boxes: [
-            box for box in boxes if box["label"] in features_to_edit
-        ]
-        get_box_to_not_edit = lambda boxes: [
-            box for box in boxes if box["label"] not in features_to_edit
+            box for label, box in boxes.items() if label in features_to_edit
         ]
 
-        customized_box_to_edit = get_box_to_edit(customized_detected_boxes)
-        customized_boxes_to_not_edit = get_box_to_not_edit(customized_detected_boxes)
-        original_box_to_edit = get_box_to_edit(customized_detected_boxes)
-        original_boxes_to_not_edit = get_box_to_not_edit(customized_detected_boxes)
+        original_features_to_edit = get_box_to_edit(original_features_cropped)
+        customized_features_to_edit = get_box_to_edit(customized_features_cropped)
+
+
         # encompass feature location difference
+        # first "union" score
+        cropped_im1 = Image.new("RGB", image_1.size, (0, 0, 0))
+        for box in original_features_to_edit:
+            region = image_1.crop(box)
+            cropped_im1.paste(region, box)
+        cropped_im2 = Image.new("RGB", image_2.size, (0, 0, 0))
+        for box in customized_features_to_edit:
+            region2 = image_2.crop(box)
+            cropped_im2.paste(region2, box)
+        # computing the number of pixel not black and dividing the squarred error by it
+        #used_pixels = get_used_pixels(cropped_im1)#TODO check wether this value might be useful
+        hash_ori_box = imagehash.phash(cropped_im1)
+        hash_cust_box = imagehash.phash(cropped_im2)
+        phash_diff_modified = hash_ori_box -  hash_cust_box 
+        
+        # Second "anti-union" score
+        hid_im1 = image_1.copy()
+        hid_im2 = image_2.copy()
+        for box in original_features_to_edit:
+            region = image_1.crop(box)
+            crop_size = (box[2] - box[0], box[3] - box[1])
+            hid_im1.paste(
+                Image.new("RGB", crop_size, (0, 0, 0)),
+                box,
+            )
+        for box in customized_features_to_edit:
+            region = image_2.crop(box)
+            crop_size = (box[2] - box[0], box[3] - box[1])
+            hid_im2.paste(
+                Image.new("RGB", crop_size, (0, 0, 0)),
+                box,
+            )  # put black image on the boxes
 
-        # note:probably better to make the box to edit black in both image(the same way I did before) and to compute phash after
-        pass
+        hash_ori_box_ne = imagehash.phash(cropped_im1)
+        hash_cust_box_ne = imagehash.phash(cropped_im2)
+        phash_diff_non_modified = hash_ori_box_ne -  hash_cust_box_ne 
+        
+        phash_score = float(phash_diff_modified / (phash_diff_modified + phash_diff_non_modified))
+        
+        return phash_score
 
     @staticmethod
     def get_score_size_dependent(
