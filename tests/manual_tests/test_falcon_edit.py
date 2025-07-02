@@ -4,7 +4,7 @@ from openai import OpenAI
 from vif.agent.agent import FeatureAgent
 from vif.falcon.edition import OracleEditionModule
 from vif.falcon.falcon import Falcon
-from vif.falcon.oracle import OracleBoxModule
+from vif.falcon.oracle.score_oracle import OracleScoreBoxModule
 from vif.feature_search.feature_search import SearchModule
 from vif.utils.debug_utils import save_conversation
 from vif.utils.renderer.tex_renderer import TexRenderer
@@ -25,7 +25,7 @@ edition_module = OracleEditionModule(
     debug=True
 )
 
-identification_module = OracleBoxModule(
+identification_module = OracleScoreBoxModule(
     client=client,
     model="gemini-2.0-flash",
 )
