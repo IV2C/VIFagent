@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from openai import OpenAI
 
-import vif.falcon.oracle
+import vif.falcon.oracle.score_oracle
 
 
 class TestCreateOracle(unittest.TestCase):
@@ -43,7 +43,7 @@ ANSWER:
 
         client_mock.chat.completions.create = MagicMock(return_value=mock_res)
         box_oracle_module = (
-            vif.falcon.oracle.OracleBoxModule(
+            vif.falcon.oracle.score_oracle.OracleScoreBoxModule(
                 model=None, client=client_mock
             )
         )

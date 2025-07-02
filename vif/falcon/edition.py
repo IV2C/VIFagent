@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 import PIL.Image
-from vif.falcon.oracle import FullOracleResponse
+from vif.falcon.oracle.score_oracle import FullOracleResponse
 from vif.models.code import CodeEdit
 from vif.models.misc import ToolCallError
 from vif.models.module import LLMmodule

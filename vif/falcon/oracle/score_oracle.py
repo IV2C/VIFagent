@@ -9,6 +9,7 @@ import torch
 from PIL import Image
 from collections.abc import Callable
 from openai import Client
+from vif.falcon.oracle.oracle import OracleModule
 from vif.models.module import LLMmodule
 from vif.prompts.identification_prompts import PINPOINT_PROMPT
 from vif.utils.detection_utils import get_boxes
@@ -22,7 +23,10 @@ from vif.utils.image_utils import adjust_bbox, encode_image, get_used_pixels, se
 import imagehash
 
 
-class OracleBoxModule(LLMmodule):
+class OracleScoreBoxModule(OracleModule):
+    """Initial implementation of the oracle module, based on score computation from feature similarity/disimilarity
+    NOTE: Not tested"""
+
     def __init__(
         self,
         *,
@@ -32,8 +36,6 @@ class OracleBoxModule(LLMmodule):
         debug: bool = False,
         debug_folder: str = ".tmp/debug",
     ):
-        self.debug = debug
-        self.debug_folder = debug_folder
         self.embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
         super().__init__(
             debug=debug,
@@ -53,58 +55,9 @@ class OracleBoxModule(LLMmodule):
 
         self.max_authorized_selfsim = max_selfsim + ((1 - max_selfsim) / 2)
 
-    def get_featureset(
-        self, features: list[str], instruction: str, base_image: Image.Image
-    ):
-        # getting the features to add/delete/modify
-        feature_string = ",".join([f for f in features])
-        pinpoint_instructions = PINPOINT_PROMPT.format(
-            features=feature_string, instruction=instruction
-        )
-        encoded_image = encode_image(base_image)
-        response = self.client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": pinpoint_instructions,
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded_image}"
-                            },
-                        },
-                    ],
-                },
-            ],
-        )
-        response = response.choices[0].message.content
-
-        features_to_edit, features_to_delete, features_to_add = tuple(
-            [
-                ast.literal_eval(arr)
-                for arr in response.split("ANSWER:")[1].strip().splitlines()
-            ]
-        )
-        return (features_to_edit, features_to_delete, features_to_add)
-
-    def detect_feat_boxes(self, features: list[str], base_image: Image.Image):
-        return get_boxes(
-            base_image,
-            self.client,
-            features,
-            self.model,
-            self.temperature,
-        )
-
     def get_oracle(
         self, features: list[str], instruction: str, base_image: Image.Image
-    ) -> Callable[[Image.Image], tuple[bool, tuple[float, bool, bool], str, Any]]:
+    ) -> Callable[[Image.Image], tuple[str,float,Any]]:
         logger.info("Creating Oracle")
 
         original_detected_boxes = self.detect_feat_boxes(features, base_image)
@@ -112,7 +65,7 @@ class OracleBoxModule(LLMmodule):
         features = list(set([box["label"] for box in original_detected_boxes]))
         # The two tasks are independent and can be executed in parallel
         with ThreadPoolExecutor() as executor:
-            f1 = executor.submit(self.get_featureset, features, instruction, base_image)
+            f1 = executor.submit(self.get_edit_list, features, instruction, base_image)
             f2 = executor.submit(self.compute_selfembedding, features)
 
             features_to_edit, features_to_delete, features_to_add = f1.result()
@@ -133,9 +86,9 @@ class OracleBoxModule(LLMmodule):
             ]
 
         @staticmethod
-        def feature_oracle(
+        def oracle(
             image: Image.Image,
-        ) -> FeatureOracleResponse:
+        ) -> tuple[bool,float,str,Any]:
             """Assert that an image solution has edited the right features
 
             Args:
@@ -163,7 +116,7 @@ class OracleBoxModule(LLMmodule):
                 edit_score = -1
             else:
 
-                edit_score = OracleBoxModule.get_score(
+                edit_score = OracleScoreBoxModule.get_score(
                     features_to_edit,
                     original_detected_boxes,
                     customized_detected_boxes,
@@ -219,39 +172,12 @@ class OracleBoxModule(LLMmodule):
                 )
             )
 
-            return FeatureOracleResponse(
+            return (
                 full_condition,
-                (edit_score, added_condition, deleted_condition),
+                edit_score,
                 full_report,
                 debug_object,
             )
-
-        @staticmethod
-        def edit_oracle(
-            image: Image.Image,
-        ) -> EditOracleResponse:
-            """verifies that an image satifies an edit, the image normally has the proper features added/deleted/modified
-
-            Args:
-                image (Image.Image): The image to test
-
-            Returns:
-                EditOracleResponse: A response object containing information about the edit conditions
-            """
-
-            pass
-
-        @staticmethod
-        def oracle(
-            image: Image.Image,
-        ) -> FullOracleResponse:
-            feature_res = feature_oracle(image)
-            edit_res = None
-            if feature_res.condition:
-                edit_res = edit_oracle(image)
-
-            full_condition = feature_res.condition and edit_res.condition
-            return FullOracleResponse(full_condition, feature_res, edit_res)
 
         return oracle
 
@@ -322,7 +248,7 @@ class OracleBoxModule(LLMmodule):
         )
 
         if (
-            return_value := OracleBoxModule.ensure_match_ori_custom(
+            return_value := OracleScoreBoxModule.ensure_match_ori_custom(
                 all_feature_lists, original_detected_labels, customized_detected_labels
             )
             != NotImplemented
@@ -331,12 +257,16 @@ class OracleBoxModule(LLMmodule):
 
         # asjudting the boxes to the images
         original_features_cropped = {
-            box["label"]: adjust_bbox(box, image_1)["box_2d"] #TODO make a copy before modifying
+            box["label"]: adjust_bbox(box, image_1)[
+                "box_2d"
+            ]  # TODO make a copy before modifying
             for box in original_detected_boxes
         }
 
         customized_features_cropped = {
-            box["label"]: adjust_bbox(box, image_2)["box_2d"]#TODO make a copy before modifying
+            box["label"]: adjust_bbox(box, image_2)[
+                "box_2d"
+            ]  # TODO make a copy before modifying
             for box in customized_detected_boxes
         }
 
@@ -347,7 +277,6 @@ class OracleBoxModule(LLMmodule):
 
         original_features_to_edit = get_box_to_edit(original_features_cropped)
         customized_features_to_edit = get_box_to_edit(customized_features_cropped)
-
 
         # encompass feature location difference
         # first "union" score
@@ -360,11 +289,11 @@ class OracleBoxModule(LLMmodule):
             region2 = image_2.crop(box)
             cropped_im2.paste(region2, box)
         # computing the number of pixel not black and dividing the squarred error by it
-        #used_pixels = get_used_pixels(cropped_im1)#TODO check wether this value might be useful
+        # used_pixels = get_used_pixels(cropped_im1)#TODO check wether this value might be useful
         hash_ori_box = imagehash.phash(cropped_im1)
         hash_cust_box = imagehash.phash(cropped_im2)
-        phash_diff_modified = hash_ori_box -  hash_cust_box 
-        
+        phash_diff_modified = hash_ori_box - hash_cust_box
+
         # Second "anti-union" score
         hid_im1 = image_1.copy()
         hid_im2 = image_2.copy()
@@ -385,10 +314,12 @@ class OracleBoxModule(LLMmodule):
 
         hash_ori_box_ne = imagehash.phash(cropped_im1)
         hash_cust_box_ne = imagehash.phash(cropped_im2)
-        phash_diff_non_modified = hash_ori_box_ne -  hash_cust_box_ne 
-        
-        phash_score = float(phash_diff_modified / (phash_diff_modified + phash_diff_non_modified))
-        
+        phash_diff_non_modified = hash_ori_box_ne - hash_cust_box_ne
+
+        phash_score = float(
+            phash_diff_modified / (phash_diff_modified + phash_diff_non_modified)
+        )
+
         return phash_score
 
     @staticmethod
@@ -443,27 +374,3 @@ class OracleBoxModule(LLMmodule):
             math.prod(image_1.size) - used_pixels
         )
         return float(boxes_union_mse / (1 + box_antiunion_mse))
-
-
-@dataclass
-class FeatureOracleResponse:
-    """Response of the feature oracle, containing the condition, a tuple with the edit score, add condition, and delete condition. A report automatically generated, and a debug object"""
-
-    condition: bool
-    condition_tuple: tuple[float, bool, bool]
-    full_report: str
-    debug_obj: Any
-
-
-@dataclass
-class EditOracleResponse:
-    """Response of the edit oracle"""
-
-    condition: bool
-
-
-@dataclass
-class FullOracleResponse:
-    condition: bool
-    feature_oracle_response: FeatureOracleResponse
-    edit_oracle_response: EditOracleResponse = None

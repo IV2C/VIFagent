@@ -17,7 +17,7 @@ from vif_agent.modules.identification.mapping import (
     ZoneIdentificationModule,
     IdentificationMappingModule,
 )
-from vif.falcon.oracle import OracleBoxModule
+from vif.falcon.oracle.score_oracle import OracleScoreBoxModule
 from vif_agent.modules.search.search import SearchModule
 from vif_agent.mutation.mutant import TexMutant
 from vif.utils.debug_utils import adjust_bbox, encode_image, mse

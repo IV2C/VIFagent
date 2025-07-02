@@ -3,7 +3,7 @@ from PIL import Image
 from loguru import logger
 
 from vif.falcon.edition import OracleEditionModule
-from vif.falcon.oracle import OracleBoxModule
+from vif.falcon.oracle.score_oracle import OracleScoreBoxModule
 from vif.feature_search.feature_search import SearchModule
 from vif.prompts.edition_prompts import SYSTEM_PROMPT_CLARIFY
 from vif.utils.image_utils import encode_image
@@ -15,7 +15,7 @@ class Falcon:
         code_renderer: Callable[[str], Image.Image],
         edition_module: OracleEditionModule = None,
         search_module: SearchModule = None,
-        identification_module: OracleBoxModule = None,
+        identification_module: OracleScoreBoxModule = None,
         debug=False,
         clarify_instruction=False,
         debug_folder=".tmp/debug",
