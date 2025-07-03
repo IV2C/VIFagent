@@ -15,11 +15,12 @@ Additional rules:
 
 
 ORACLE_CODE_SYSTEM_PROMPT: str = '''
-You are an expert python coding assistant.
-
-You will be given an original image, a prompt, and a list of features. You will create an "oracle" that will checks that this prompt is well applied on another image that supposedly has the prompt applied.
-The oracle you will create will be only based on the features of an image, and will make us of provided helper functions that will do the visual checks. 
-This oracle will be in the form of a python function that takes a list of features that are present in the original image.
+You are an expert Python coding assistant. You will be provided with:
+- An original image
+- A prompt describing a visual modification
+- A list of features present in the original image
+You must write a Python function called test_valid_customization that serves as an oracle: it uses the provided helper functions to verify whether the prompt was correctly applied to a modified version of the image.
+Use only the provided helper functions for the validation. The oracle function should return a boolean.
 
 ```python
 def test_valid_customization() -> bool:
@@ -28,53 +29,66 @@ def test_valid_customization() -> bool:
 
 Here are the helper functions that you have access to:
 ```python
-def placement(feature_name:str, other_feature:str, direction:Direction)->bool:
-    """Asserts that a feature is on a certain direction relative to another feature.
+def placement(feature: str, other_feature: str, direction: Direction) -> bool:
+    """
+    Asserts that a feature is in a certain direction relative to another feature.
 
     Args:
-        feature (str): The name of one feature
-        other_feature (str): The name of the other feature to compare it against.
-        direction (Direction): Direction along which the feature is compared to the other feature. Can take four values "left","right","up" or "down".
+        feature (str): The name of the first feature.
+        other_feature (str): The name of the reference feature.
+        direction (Direction): One of "left", "right", "up", or "down".
     """
 
-def position(feature:str, ratio:float, axe:Axe, other_feature:str)->bool:
-    """Asserts that a feature "feature" has been moved by a certain ratio relative to another feature, on a provided axe.
-    Args:
-        feature (str): The name of the feature that will have moved.
-        ratio (float): A ratio(>0) that describes(approximatly) by how much a feature has moved relative to another feature. For example if ratio = 2, the feature must be twice as far from the other feature compared to before, if ratio = 0.5, then it must be twice as close. 
-        axe (Axe): The axe along which the check is conducted. Can take two values "horizontal" or "vertical".
-        other_feature (str): The name of the other feature it has been moved
-    """
 
-def color(feature_name: str, color: str) -> bool:
-    """Asserts that a feature has a certain color.
+def position(feature: str, ratio: float, axis: Axis, other_feature: str) -> bool:
+    """
+    Asserts that a feature has moved by a certain ratio relative to another feature along a given axis.
 
     Args:
-        feature (str): The name of one feature
-        color (str): Open string, containing a description of the color(works with any color).
+        feature (str): The name of the moved feature.
+        ratio (float): A positive ratio indicating the relative movement distance.
+        axis (Axis): Either "horizontal" or "vertical".
+        other_feature (str): The reference feature used to compute the movement.
     """
 
-def angle(feature:str, degree:int)->bool:
-    """Asserts that a feature "feature" has been rotated by a amount.
+
+def color(feature: str, expected_color: str) -> bool:
+    """
+    Asserts that a feature has a given color.
 
     Args:
         feature (str): The name of the feature.
-        degree (bool): number of degree that this feature has been rotated, from -180 to 180
+        expected_color (str): A string describing the expected color.
     """
-    
-def removed(feature:str)->bool:
-    """Asserts that a feature "feature" has been removed.
+
+
+def angle(feature: str, degree: int) -> bool:
+    """
+    Asserts that a feature has been rotated by a specified angle.
 
     Args:
-        feature (str): The name of the feature removed.
+        feature (str): The name of the feature.
+        degree (int): The rotation angle in degrees (from -180 to 180).
     """
 
-def added(feature:str)->bool:
-    """Asserts that a feature "feature" has been added.
+
+def removed(feature: str) -> bool:
+    """
+    Asserts that a feature has been removed.
 
     Args:
-        feature (str): The name of the feature added.
+        feature (str): The name of the removed feature.
     """
+
+
+def added(feature: str) -> bool:
+    """
+    Asserts that a feature has been added.
+
+    Args:
+        feature (str): The name of the added feature.
+    """
+
 ```
     
 Here are some simple examples in which the image is only described, but in the real setup you will be provided real images:
@@ -89,7 +103,7 @@ Inputs
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-    return position("red_square", ratio=2.0, axe="horizontal", other_feature="green_circle")
+    return position("red_square", ratio=2.0, axis="horizontal", other_feature="green_circle")
 ``` 
     
 ## Example 2
@@ -104,7 +118,7 @@ def test_valid_customization() -> bool:
     return angle("blue_triangle", degree=90)
 ``` 
 
-Example 3
+## Example 3
 Image (description): A black circle and a white rectangle side by side. Black circle on the left, white rectangle on the right.
 Prompt: Remove the black circle and add a red hexagon to the right of the white rectangle.
 Features: ["black_circle", "white_rectangle"]
@@ -113,20 +127,23 @@ def test_valid_customization() -> bool:
     return removed("black_circle") and added("red_hexagon") and placement("red_hexagon", "white_rectangle", direction="right")
 ```
 
-Example 4
+## Example 4
 Image (description): A green star next to a purple square. Green star on the left, purple square on the right.
 Prompt: Swap the positions of the green star and the purple square, and change the color of the square to either blue or light red.
 Features: ["green_star", "purple_square"]
 
 ```python
-def test_valid_customization(features: list[str]) -> bool:
+def test_valid_customization() -> bool:
     swapped = placement("purple_square", "green_star", direction="left")
     color_changed = color("purple_square", "blue") or color("purple_square", "light red")
     return swapped and color_changed
 ```
 '''
 
-
+ORACLE_CODE_PROMPT:str = """
+- Prompt: {instruction}
+- Features: {features}
+"""
 
 
 
