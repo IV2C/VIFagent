@@ -7,7 +7,7 @@ from openai import Client
 from vif.falcon.oracle.oracle import OracleModule
 from PIL import Image
 
-from vif.prompts.oracle_prompts import ORACLE_CODE_PROMPT, ORACLE_CODE_SYSTEM_PROMPT
+from vif.prompts.oracle_prompts import ORACLE_CODE_PROMPT, ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT
 from vif.utils.image_utils import encode_image
 
 
@@ -45,7 +45,7 @@ class OracleDynamicBoxModule(OracleModule):
             model=self.model,
             temperature=self.temperature,
             messages=[
-                {"role": "system", "content": ORACLE_CODE_SYSTEM_PROMPT},
+                {"role": "system", "content": ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT},
                 {
                     "role": "user",
                     "content": [
@@ -78,48 +78,7 @@ class OracleDynamicBoxModule(OracleModule):
         #TODO
         
         
-#################### Oracle condition "function" which actually are classes, for easier feedback creation ###############
 
-#TODO put all of this in it own file that will be loaded on the fly along with the code generated
-#The OracleExpression(or OracleCondition?) will contain all the segmentation and box mapping "semi-hardcoded" so that it can be accessed by the self within any condition
-class OracleExpression:
-    def __init__(self):
-        pass
-    
+    def normalize_oracle_function(function: str):
+        return function.replace(" and ", " & ").replace(" or ", " | ").replace("not ", "~")
 
-    @abstractmethod
-    def evaluate() -> tuple[bool,str]:
-        """evaluates the condition
-
-        Returns:
-            tuple[bool,str]: a boolean from the condition and feedback
-        """
-        pass
-
-class OracleCondition(OracleExpression):
-    def __init__(self, feature:str):
-        self.feature = feature
-        pass
-    
-class OracleBynaryOp(OracleExpression):
-    def __init__(self, conditionA:OracleCondition,conditionB:OracleCondition):
-        self.conditionA = conditionA
-        self.conditionB = conditionB
-        pass
-
-class OracleOrOp(OracleBynaryOp):
-    
-    def evaluate():
-        return 
-
-class OraclAndrOp(OracleBynaryOp):
-    def get_feedback():
-        pass 
-  
-class added(OracleCondition):
-    def __init__(self, feature):
-        super().__init__(feature)
-    
-
-    def evaluate():
-        pass

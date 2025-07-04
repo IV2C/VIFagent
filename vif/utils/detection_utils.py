@@ -10,6 +10,7 @@ from PIL import Image
 import numpy as np
 from openai import OpenAI
 
+from vif.models.detection import SegmentationMask
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
 from vif.utils.image_utils import adjust_bbox, encode_image, mse
 
@@ -94,15 +95,7 @@ def get_segmentation_masks(
     return seg_masks
 
 
-@dataclasses.dataclass(frozen=True)
-class SegmentationMask:
-    # bounding box pixel coordinates (not normalized)
-    y0: int  # in [0..height - 1]
-    x0: int  # in [0..width - 1]
-    y1: int  # in [0..height - 1]
-    x1: int  # in [0..width - 1]
-    mask: np.array  # [img_height, img_width] with values 0..255
-    label: str
+
 
 
 def parse_segmentation_masks(

@@ -5,12 +5,12 @@ from sentence_transformers import SentenceTransformer
 import torch
 
 from vif.models.code import CodeEdit
+from vif.models.detection import Box2D, Span
 from vif.utils.code_utils import apply_edits, get_annotated_code
 
 
 
-type Box2D = tuple[float, float, float, float]
-type Span = tuple[int, int]
+
 
 
 @dataclass
