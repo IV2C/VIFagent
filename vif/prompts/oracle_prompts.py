@@ -14,7 +14,7 @@ Additional rules:
 """
 
 
-ORACLE_CODE_SYSTEM_PROMPT: str = '''
+ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT: str = '''
 You are an expert Python coding assistant. You will be provided with:
 - An original image
 - A prompt describing a visual modification
@@ -40,7 +40,7 @@ def placement(feature: str, other_feature: str, direction: Direction) -> bool:
     """
 
 
-def position(feature: str, ratio: float, axis: Axis, other_feature: str) -> bool:
+def position(feature: str, other_feature: str, ratio: float, axis: Axis) -> bool:
     """
     Asserts that a feature has moved by a certain ratio relative to another feature along a given axis.
 
@@ -103,7 +103,7 @@ Inputs
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-    return position("red_square", ratio=2.0, axis="horizontal", other_feature="green_circle")
+    return position("red_square","green_circle", ratio=2.0, axis="horizontal")
 ``` 
     
 ## Example 2
@@ -139,6 +139,11 @@ def test_valid_customization() -> bool:
     return swapped and color_changed
 ```
 '''
+
+
+
+
+
 
 ORACLE_CODE_PROMPT:str = """
 - Prompt: {instruction}
