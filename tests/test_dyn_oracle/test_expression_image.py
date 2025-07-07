@@ -3,6 +3,7 @@ import unittest
 from vif.falcon.oracle.dynamic_oracle.expressions import (
     OracleExpression,
     added,
+    angle,
     placement,
     position,
     removed,
@@ -221,7 +222,7 @@ class TestExpression(unittest.TestCase):
         result, feedback = expression.evaluate(
             original_features, custom_features, original_image, custom_image
         )
-        self.assertTrue(result,feedback)
+        self.assertTrue(result, feedback)
         self.assertEqual([], feedback)
 
     @parameterized.expand(
@@ -273,3 +274,55 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual([feedback_expected], feedback)
+
+    @parameterized.expand(
+        [(40), (45), (50), (-40), (-45), (-50), (130), (135), (140), (-130), (-135), (-140)]
+    )
+    def test_rotated_valid(self, degree):
+        import pickle
+
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/rgb_stc.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/stc_rgb_rotc.pickle", "rb").read()
+        )
+        original_image: Image.Image = None
+        custom_image: Image.Image = None
+
+        def test_valid_customization() -> bool:
+            return ~angle("blue square", degree)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_features, custom_features, original_image, custom_image
+        )
+        self.assertTrue(result)
+        self.assertEqual([], feedback)
+
+
+    @parameterized.expand(
+        [(85), (90), (95), (-85), (-90), (-95), (175), (180), (185), (-175), (-180), (-185)]
+    )
+    def test_rotated_invalid(self, degree):
+        import pickle
+
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/rgb_stc.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/stc_rgb_rotc.pickle", "rb").read()
+        )
+        original_image: Image.Image = None
+        custom_image: Image.Image = None
+
+        def test_valid_customization() -> bool:
+            return ~angle("blue square", degree)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_features, custom_features, original_image, custom_image
+        )
+        expected_feedback = f"The feature blue square should be rotated by {degree} degrees, but is rotated by -135,-45,45,135 degrees."
+        self.assertFalse(result)
+        self.assertEqual([expected_feedback], feedback)

@@ -407,3 +407,42 @@ def box_size_increase(
         (box[2] + (w - box[2]) * ratio),
         (box[3] + (h - box[3]) * ratio),
     )
+
+
+import numpy as np
+from skimage.transform import rotate
+
+def crop_with_box(mask, box):
+    """Crop mask using box = (x0,x1,y0,y1)."""
+    x0,x1,y0,y1 = box
+    return mask[y0:y1, x0:x1]
+
+def rotate_mask(mask, angle):
+    """Rotate mask around its center, preserving size."""
+    return rotate(mask, angle=angle, resize=True, order=0, preserve_range=True).astype(mask.dtype)
+
+def compute_overlap(rotated_mask1, mask2):
+    """Center-align smaller mask to larger one, compute overlap."""
+    h1, w1 = rotated_mask1.shape
+    h2, w2 = mask2.shape
+
+    # Compute canvas size
+    H = max(h1, h2)
+    W = max(w1, w2)
+
+    def pad_center(mask, H, W):
+        h, w = mask.shape
+        top = (H - h) // 2
+        bottom = H - h - top
+        left = (W - w) // 2
+        right = W - w - left
+        return np.pad(mask, ((top, bottom), (left, right)))
+
+    m1_p = pad_center(rotated_mask1, H, W)
+    m2_p = pad_center(mask2, H, W)
+    
+    # Binary masks assumed: overlap = logical AND
+    intersection = np.logical_and(m1_p, m2_p)
+    union = np.logical_or(m1_p, m2_p)
+    
+    return intersection.sum() / union.sum() 

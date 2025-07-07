@@ -1,10 +1,14 @@
 #################### Oracle condition "function" which actually are classes, for easier feedback creation ###############
 
 from abc import abstractmethod
+from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any
 from PIL import Image
+import numpy as np
 
 from vif.models.detection import SegmentationMask
+from vif.utils.image_utils import compute_overlap, crop_with_box, rotate_mask
 
 
 class OracleExpression:
@@ -184,7 +188,7 @@ class Axis(str, Enum):
     vertical = "vertical"
 
 
-def get_box_for_feature(feature: str, features: list[SegmentationMask]):
+def get_seg_for_feature(feature: str, features: list[SegmentationMask]):
     return next((seg for seg in features if seg.label == feature), None)
 
 
@@ -224,8 +228,8 @@ class placement(OracleCondition):
     def evaluate(
         self, original_features, custom_features, original_image, custom_image
     ):
-        box_featA = get_box_for_feature(self.feature, custom_features)
-        box_featB = get_box_for_feature(self.other_feature, custom_features)
+        box_featA = get_seg_for_feature(self.feature, custom_features)
+        box_featB = get_seg_for_feature(self.other_feature, custom_features)
 
         center_boxA = get_box_center(box_featA)
         center_boxB = get_box_center(box_featB)
@@ -256,9 +260,7 @@ class placement(OracleCondition):
 
 
 class position(OracleCondition):
-    def __init__(
-        self, feature: str, other_feature: str, ratio: float, axis: Axis
-    ):
+    def __init__(self, feature: str, other_feature: str, ratio: float, axis: Axis):
         self.other_feature = other_feature
         self.axis = axis
         self.ratio = ratio
@@ -267,15 +269,15 @@ class position(OracleCondition):
 
     def __invert__(self):
         self.negated = True
-        return self  # TODO
+        return self
 
     def evaluate(
         self, original_features, custom_features, original_image, custom_image
     ):
-        original_box_featA = get_box_for_feature(self.feature, original_features)
-        original_box_featB = get_box_for_feature(self.other_feature, original_features)
-        custom_box_featA = get_box_for_feature(self.feature, custom_features)
-        custom_box_featB = get_box_for_feature(self.other_feature, custom_features)
+        original_box_featA = get_seg_for_feature(self.feature, original_features)
+        original_box_featB = get_seg_for_feature(self.other_feature, original_features)
+        custom_box_featA = get_seg_for_feature(self.feature, custom_features)
+        custom_box_featB = get_seg_for_feature(self.other_feature, custom_features)
 
         center_ori_boxA = get_box_center(original_box_featA)
         center_ori_boxB = get_box_center(original_box_featB)
@@ -306,8 +308,8 @@ class position(OracleCondition):
         )
         if self.negated:
             feedback = f"The horizontal distance between {self.feature} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
-            return (not condition,feedback)
-        
+            return (not condition, feedback)
+
         feedback = f"The horizontal distance between {self.feature} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
         return (condition, feedback)
 
@@ -322,6 +324,53 @@ class position(OracleCondition):
         )
         if self.negated:
             feedback = f"The vertical distance between {self.feature} and {self.other_feature} is {d2[1]} which is too close to {expected_distance}."
-            return (not condition,feedback)
+            return (not condition, feedback)
         feedback = f"The vertical distance between {self.feature} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[1]}."
         return (condition, feedback)
+
+
+class angle(OracleCondition):
+    def __init__(self, feature: str, degree: int):
+        self.degree = degree
+        self.negated = False
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self  # TODO
+
+    def evaluate(
+        self, original_features, custom_features, original_image, custom_image
+    ):
+        ori_seg = get_seg_for_feature(self.feature, original_features)
+        custom_seg = get_seg_for_feature(self.feature, custom_features)
+        ori_box = (ori_seg.x0, ori_seg.x1, ori_seg.y0, ori_seg.y1)
+        custom_box = (custom_seg.x0, custom_seg.x1, custom_seg.y0, custom_seg.y1)
+        cropped1 = crop_with_box(ori_seg.mask, ori_box)
+        cropped2 = crop_with_box(custom_seg.mask, custom_box)
+
+        degrees = list(range(-180, 180, 5))
+        args_list = [(deg, cropped1, cropped2) for deg in degrees]
+
+        ious = defaultdict(list)
+        with ProcessPoolExecutor() as executor:
+            futures = [executor.submit(self.test_angle, args) for args in args_list]
+            for future in as_completed(futures):
+                iou, deg = future.result()
+                ious[iou].append(
+                    deg
+                )  # using similarity as key make this resistant to rotation invariant
+
+        sorted_IoUs = sorted(ious.items(), reverse=True)
+        sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:3] for iou in ious[1]]
+        condition = any(deg - 3 < self.degree < deg + 3 for deg in sorted_IoUs_degrees)
+
+        feedback = f"The feature {self.feature} should be rotated by {self.degree} degrees, but is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]])} degrees."
+
+        return (condition, [feedback] if not condition else [])
+
+    def test_angle(self, args):
+        degree_test, cropped1, cropped2 = args
+        rotated = rotate_mask(cropped1, angle=degree_test)
+        iou = compute_overlap(rotated, cropped2)
+        return round(iou, 2), degree_test
