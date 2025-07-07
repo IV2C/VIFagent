@@ -419,7 +419,7 @@ def crop_with_box(mask, box):
 
 def rotate_mask(mask, angle):
     """Rotate mask around its center, preserving size."""
-    return rotate(mask, angle=angle, resize=True, order=0, preserve_range=True).astype(mask.dtype)
+    return rotate(mask, angle=angle, resize=True, preserve_range=True).astype(mask.dtype)
 
 def compute_overlap(rotated_mask1, mask2):
     """Center-align smaller mask to larger one, compute overlap."""
