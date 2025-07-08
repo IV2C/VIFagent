@@ -1,5 +1,6 @@
 from abc import abstractmethod
 from collections.abc import Callable
+import re
 from typing import Any
 from loguru import logger
 from openai import Client
@@ -7,8 +8,21 @@ from openai import Client
 from vif.falcon.oracle.oracle import OracleModule
 from PIL import Image
 
-from vif.prompts.oracle_prompts import ORACLE_CODE_PROMPT, ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT
+from vif.prompts.oracle_prompts import (
+    ORACLE_CODE_PROMPT,
+    ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
+)
 from vif.utils.image_utils import encode_image
+
+from vif.falcon.oracle.dynamic_oracle.expressions import (
+    OracleExpression,
+    added,
+    removed,
+    angle,
+    placement,
+    position,
+    color,
+)
 
 
 class OracleDynamicBoxModule(OracleModule):
@@ -34,7 +48,7 @@ class OracleDynamicBoxModule(OracleModule):
     def get_oracle_code(
         self, features: list[str], instruction: str, base_image: Image.Image
     ):
-        # getting the features to add/delete/modify
+
         feature_string = '["' + '","'.join([f for f in features]) + '"]'
 
         oracle_code_instructions = ORACLE_CODE_PROMPT.format(
@@ -64,21 +78,51 @@ class OracleDynamicBoxModule(OracleModule):
             ],
         )
         response = response.choices[0].message.content
-        #TODO
-        raise NotImplementedError()
+        pattern = r"```(?:\w+)?\n([\s\S]+?)```"
+        id_match = re.search(pattern, response.choices[0].message.content)
+
+        if not id_match:
+
+            return None
+
+        oracle_method = id_match.group(1)
+        return oracle_method
 
     def get_oracle(
         self, features: list[str], instruction: str, base_image: Image.Image
     ) -> Callable[[Image.Image], tuple[str, float, Any]]:
         logger.info("Creating Oracle")
 
-        original_detected_boxes = self.detect_feat_boxes(features, base_image)
+        original_detected_segs = self.detect_seg_masks_boxes(features, base_image)
         # first filtering the features depending on wether they have been detected in the original image
-        features = list(set([box["label"] for box in original_detected_boxes]))
-        #TODO
-        
-        
+        features = list(set([seg["label"] for seg in original_detected_segs]))
+
+        oracle_code = self.get_oracle_code(features, instruction, base_image)
+        available_functions = {
+            "added": added,
+            "removed": removed,
+            "color": color,
+            "position": position,
+            "placement": placement,
+            "angle": angle,
+        }
+
+        exec(oracle_code, available_functions)
+        expression:OracleExpression = globals["test_valid_customization"]()
+
+        @staticmethod
+        def oracle(
+            image: Image.Image,
+        ) -> tuple[bool, str, Any]:
+            custom_detected_segs = self.detect_seg_masks_boxes(features)
+            result, feedback = expression.evaluate(
+                original_detected_segs, custom_detected_segs, base_image, image
+            )
+            return (result, feedback)
+
+        return oracle
 
     def normalize_oracle_function(function: str):
-        return function.replace(" and ", " & ").replace(" or ", " | ").replace("not ", "~")
-
+        return (
+            function.replace(" and ", " & ").replace(" or ", " | ").replace("not ", "~")
+        )

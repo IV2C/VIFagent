@@ -1,7 +1,7 @@
 #################### Oracle condition "function" which actually are classes, for easier feedback creation ###############
 
 from abc import abstractmethod
-from collections import defaultdict
+from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from typing import Any
 from PIL import Image
@@ -9,6 +9,22 @@ import numpy as np
 
 from vif.models.detection import SegmentationMask
 from vif.utils.image_utils import compute_overlap, crop_with_box, rotate_mask
+
+from sentence_transformers import SentenceTransformer
+
+color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
+basic_colors = [
+    "blue",
+    "orange",
+    "green",
+    "red",
+    "purple",
+    "brown",
+    "pink",
+    "gray",
+    "olive",
+    "cyan",
+]  # matplotlib tableau colors
 
 
 class OracleExpression:
@@ -337,7 +353,7 @@ class angle(OracleCondition):
 
     def __invert__(self):
         self.negated = True
-        return self  # TODO
+        return self
 
     def evaluate(
         self, original_features, custom_features, original_image, custom_image
@@ -365,7 +381,11 @@ class angle(OracleCondition):
         sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:3] for iou in ious[1]]
         condition = any(deg - 3 < self.degree < deg + 3 for deg in sorted_IoUs_degrees)
 
-        feedback = f"The feature {self.feature} should be rotated by {self.degree} degrees, but is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]])} degrees."
+        if self.negated:
+            condition = not condition
+            feedback = f"The feature {self.feature} should not be rotated by {self.degree} degrees, and is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees, which is too close/equal."
+        else:
+            feedback = f"The feature {self.feature} should be rotated by {self.degree} degrees, but is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees."
 
         return (condition, [feedback] if not condition else [])
 
@@ -374,3 +394,49 @@ class angle(OracleCondition):
         rotated = rotate_mask(cropped1, angle=degree_test)
         iou = compute_overlap(rotated, cropped2)
         return round(iou, 2), degree_test
+
+
+class color(OracleCondition):
+    def __init__(self, feature: str, color_expected: str):
+        self.color_expected = color_expected
+        self.negated = False
+
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self
+
+    def get_feature_color(self,feature_seg: SegmentationMask, image: Image.Image):
+        img_np = np.array(image)
+
+        masked_pixels = img_np[feature_seg.mask.astype(bool)]
+
+        most_common = Counter(map(tuple, masked_pixels)).most_common(1)[0][0]
+        return most_common
+
+    def evaluate(
+        self, original_features, custom_features, original_image, custom_image
+    ):
+        req_features = get_seg_for_feature(self.feature, custom_features)
+
+        color_custom = self.get_feature_color(req_features, custom_image)
+
+        color_custom = "rgb(" + ",".join([str(co) for co in color_custom]) + ")"
+
+        embeddings = color_model.encode([color_custom])
+        embeddings_full_colors = color_model.encode([self.color_expected] + basic_colors)
+
+        similarities = color_model.similarity(
+            embeddings, embeddings_full_colors
+        )[0]
+        max_sim_color = ([self.color_expected] + basic_colors)[similarities.argmax()]
+        
+        condition = similarities[0]>0.9 or max_sim_color == self.color_expected
+        feedback = f"The color of the feature {self.feature} should have been {self.color_expected}, but is closer to {max_sim_color}."
+        
+        if self.negated:
+            condition = not condition
+            feedback = f"The color of the feature {self.feature} should not have been {self.color_expected}, but is still {max_sim_color}."
+
+        return (condition, [feedback] if not condition else [])
