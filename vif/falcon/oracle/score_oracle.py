@@ -94,8 +94,6 @@ class OracleScoreBoxModule(OracleModule):
             Args:
                 image (Image.Image): image customized by the LLM
 
-            Returns:
-                FeatureOracleResponse: Object containing informations about the feature response
             """
 
             customized_detected_boxes = get_boxes(
