@@ -1,12 +1,12 @@
 import unittest
 
+from vif.falcon.oracle.guided_oracle.expressions import added
 from vif.models.detection import SegmentationMask
 from PIL import Image
 
 class TestExec(unittest.TestCase):
 
     def test_simple_exec(self):
-        from vif.falcon.oracle.dynamic_oracle.expressions import OracleExpression,added
 
         original_features: list[SegmentationMask] = None
         custom_features: list[SegmentationMask] = [SegmentationMask(0,0,0,0,None,"triangle")]
@@ -26,7 +26,6 @@ def test_valid_customization():
 
         
     def test_simple_exec_false(self):
-        from vif.falcon.oracle.dynamic_oracle.expressions import OracleExpression,added
 
         original_features: list[SegmentationMask] = None
         custom_features: list[SegmentationMask] = [SegmentationMask(0,0,0,0,None,"triangl")]

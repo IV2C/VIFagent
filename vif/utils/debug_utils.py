@@ -8,8 +8,8 @@ import numpy as np
 from vif.utils.image_utils import write_base64_to_image
 
 
-def save_conversation(messages: list,debug_path:str):
-    with open(os.path.join(debug_path,"conversation.txt"), "w") as conv:
+def save_conversation(messages: list, debug_path: str):
+    with open(os.path.join(debug_path, "conversation.txt"), "w") as conv:
         id = 0
         for message in messages:
             if not isinstance(message, dict):
@@ -38,7 +38,8 @@ def save_conversation(messages: list,debug_path:str):
                                 case "image_url":
                                     image_b64 = content["image_url"]["url"]
                                     write_base64_to_image(
-                                        image_b64, ".tmp/edition/" + str(id) + ".png"
+                                        image_b64,
+                                        os.path.join(debug_path, str(id) + ".png"),
                                     )
                                     conv.write(str(id) + "\n")
                                     id += 1
@@ -51,5 +52,3 @@ def save_conversation(messages: list,debug_path:str):
                         message["tool_call_id"] + " : " + message["content"] + "\n"
                     )
             conv.write("_________________________________________________\n")
-
-

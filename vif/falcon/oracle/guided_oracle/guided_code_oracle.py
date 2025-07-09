@@ -1,20 +1,22 @@
 from abc import abstractmethod
 from collections.abc import Callable
+import os
 import re
 from typing import Any
 from loguru import logger
 from openai import Client
 
-from vif.falcon.oracle.oracle import OracleModule
+from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
 
+from vif.models.detection import SegmentationMask
 from vif.prompts.oracle_prompts import (
     ORACLE_CODE_PROMPT,
     ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
 )
 from vif.utils.image_utils import encode_image
 
-from vif.falcon.oracle.dynamic_oracle.expressions import (
+from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
     added,
     removed,
@@ -25,21 +27,15 @@ from vif.falcon.oracle.dynamic_oracle.expressions import (
 )
 
 
-class OracleDynamicBoxModule(OracleModule):
+class OracleGuidedCodeModule(OracleModule):
     def __init__(
         self,
         *,
         model,
         client: Client,
         temperature=0.3,
-        debug: bool = False,
-        debug_folder: str = ".tmp/debug",
     ):
-        self.debug = debug
-        self.debug_folder = debug_folder
         super().__init__(
-            debug=debug,
-            debug_folder=debug_folder,
             client=client,
             temperature=temperature,
             model=model,
@@ -89,11 +85,17 @@ class OracleDynamicBoxModule(OracleModule):
         return oracle_method
 
     def get_oracle(
-        self, features: list[str], instruction: str, base_image: Image.Image
+        self,
+        features_segments: list[SegmentationMask],
+        instruction: str,
+        base_image: Image.Image,
+        detect_seg_masks_boxes: Callable[
+            [list[str], Image.Image], list[SegmentationMask]
+        ],
     ) -> Callable[[Image.Image], tuple[str, float, Any]]:
         logger.info("Creating Oracle")
 
-        original_detected_segs = self.detect_seg_masks_boxes(features, base_image)
+        original_detected_segs = features_segments
         # first filtering the features depending on wether they have been detected in the original image
         features = list(set([seg["label"] for seg in original_detected_segs]))
 
@@ -107,18 +109,23 @@ class OracleDynamicBoxModule(OracleModule):
             "angle": angle,
         }
 
+        if self.debug:
+            with open(os.path.join(self.debug_folder,"oracle_code.py"),"w") as oracle_file:
+                oracle_file.write(oracle_code)
+        
+        oracle_code = self.normalize_oracle_function(oracle_code)
         exec(oracle_code, available_functions)
-        expression:OracleExpression = globals["test_valid_customization"]()
+        expression: OracleExpression = available_functions["test_valid_customization"]()
 
         @staticmethod
         def oracle(
             image: Image.Image,
-        ) -> tuple[bool, str, Any]:
-            custom_detected_segs = self.detect_seg_masks_boxes(features)
-            result, feedback = expression.evaluate(
+        ) -> OracleResponse:
+            custom_detected_segs = detect_seg_masks_boxes(features)
+            result, feedbacks = expression.evaluate(
                 original_detected_segs, custom_detected_segs, base_image, image
             )
-            return (result, feedback)
+            return OracleResponse(result, feedbacks)
 
         return oracle
 
