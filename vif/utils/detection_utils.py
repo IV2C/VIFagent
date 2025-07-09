@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from PIL import Image
+from loguru import logger
 import numpy as np
 from openai import OpenAI
 
@@ -86,16 +87,16 @@ def get_segmentation_masks(
     id_match = re.search(pattern, response.choices[0].message.content)
 
     if not id_match:
-
+        logger.error(
+            "Error upon getting the segmentation masks : "
+            + response.choices[0].message.content
+        )#TODO might be better to thrown an error and catch it
         return None
 
     json_res = id_match.group(1)
     detected = json.loads(json_res)
     seg_masks = parse_segmentation_masks(detected, image.height, image.width)
     return seg_masks
-
-
-
 
 
 def parse_segmentation_masks(

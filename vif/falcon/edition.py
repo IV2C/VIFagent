@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 import PIL.Image
-from vif.falcon.oracle.score_oracle import FullOracleResponse
+from vif.falcon.oracle.oracle import OracleResponse
 from vif.models.code import CodeEdit
 from vif.models.misc import ToolCallError
 from vif.models.module import LLMmodule
@@ -30,34 +30,21 @@ class EditionModule:
         self.debug_folder = debug_folder
         self.debug = debug
 
-    def initialize_debug(self):
-        self._uuid = datetime.datetime.now().strftime(r"%d%m-%H%M%S")
-        logger.warning(
-            f"Debug is activated, debug folder is {os.path.join(self.debug_folder, self._uuid)}"
-        )
-        os.mkdir(os.path.join(self.debug_folder, self._uuid))
-
-    def get_id(self) -> str:
-        return self._uuid
+    def debug_instance_creation(self, debug: bool, debug_folder: str):
+        self.debug = debug
+        self.debug_folder = os.path.join(debug_folder, "edition")
+        if debug:
+            os.mkdir(self.debug_folder)
 
     def customize(instruction: str):
         pass
 
-    def save_debug(self, instruction, code, image: Image.Image, step="", var_num="0"):
+    def save_debug(self, code, image: Image.Image, step):
         if not self.debug:
             return
-        id_d: str = self.get_id()
-        if not os.path.exists(os.path.join(self.debug_folder, id_d)):
-            os.mkdir(os.path.join(self.debug_folder, id_d))
-        if not os.path.exists(os.path.join(self.debug_folder, id_d, str(step))):
-            os.mkdir(os.path.join(self.debug_folder, id_d, str(step)))
-        with open(
-            os.path.join(self.debug_folder, id_d, str(step), var_num + ".tex"), "w"
-        ) as debugd:
+        with open(os.path.join(self.debug_folder, str(step) + ".tex"), "w") as debugd:
             debugd.write(code)
-        with open(os.path.join(self.debug_folder, id_d, "instruction.txt"), "w") as ins:
-            ins.write(instruction)
-        image.save(os.path.join(self.debug_folder, id_d, str(step), var_num + ".png"))
+        image.save(os.path.join(self.debug_folder, str(step) + ".png"))
 
 
 class OracleEditionModule(EditionModule, LLMmodule):
@@ -70,13 +57,9 @@ class OracleEditionModule(EditionModule, LLMmodule):
         debug=False,
         debug_folder=".tmp/debug",
         max_iterations=5,
-        n=1,
-        kept_mutants=1,
         code_renderer=TexRenderer().from_string_to_image,
     ):
         self.max_iterations = max_iterations
-        self.n = n
-        self.kept_mutants = kept_mutants
         self.code_renderer = code_renderer
         super().__init__(
             client=client,
@@ -130,10 +113,8 @@ class OracleEditionModule(EditionModule, LLMmodule):
         self,
         instruction: str,
         code: str,
-        oracle: Callable[[Image.Image], FullOracleResponse],
+        oracle: Callable[[Image.Image], OracleResponse],
     ):
-        self.initialize_debug()  # update uuid, for debug purposes
-
         edited_code = code
         ## Send initial message
         base_image: Image.Image = self.code_renderer(code)
@@ -141,13 +122,11 @@ class OracleEditionModule(EditionModule, LLMmodule):
         """ DEBUG """
         if self.debug:
             with open(
-                os.path.join(self.debug_folder, self.get_id(), "initial.tex"),
+                os.path.join(self.debug_folder, "initial.tex"),
                 "w",
             ) as debugd:
                 debugd.write(code)
-            base_image.save(
-                os.path.join(self.debug_folder, self.get_id(), "initial.png")
-            )
+            base_image.save(os.path.join(self.debug_folder, "initial.png"))
 
         messages = self.initial_messages(
             instruction=instruction, initial_code=code, image=base_image
@@ -186,26 +165,25 @@ class OracleEditionModule(EditionModule, LLMmodule):
             try:
                 edited_image = self.code_renderer(edited_code)
 
-                feature_res = oracle(
-                    edited_image
-                ).feature_oracle_response  # TODO update with full oracle response
-                report = feature_res.full_report
+                oracle_response = oracle(edited_image)
+                report = "The resulting image did not satify the instruction, here are some feedback:\n".join(
+                    oracle_response.feedbacks
+                )
                 self.save_debug(
                     instruction=instruction,
                     code=edited_code,
                     image=edited_image,
                     step=step,
-                    oracle_result=feature_res.debug_obj,
-                    var_num="0",
+                    oracle_response=oracle_response,
                 )
             except TexRendererException as tre:
-                feature_res.condition = False
+                oracle_response = OracleResponse(False, [])
                 report = "Tex failed to compile, error: " + tre.extract_error()
             except ValueError as ve:
-                feature_res.condition = False
+                oracle_response = OracleResponse(False, [])
                 report = str(ve)
             # return if oracle satisfied
-            if feature_res.condition:
+            if oracle_response.condition:
                 self.save_conversation(messages)
                 return edited_code
 
@@ -243,16 +221,22 @@ class OracleEditionModule(EditionModule, LLMmodule):
         return edited_code
 
     def save_conversation(self, conv):
-        save_conversation(conv, os.path.join(self.debug_folder, self.get_id()))
+        save_conversation(conv, os.path.join(self.debug_folder))
 
-    def save_debug(self, instruction, code, image, oracle_result, step="", var_num="0"):
-        super().save_debug(instruction, code, image, step, var_num)
+    def save_debug(self, code, image, oracle_response:OracleResponse, step):
+        super().save_debug(code, image, step)
         if not self.debug:
             return
-        id_d: str = self.get_id()
 
         with open(
-            os.path.join(self.debug_folder, id_d, str(step), var_num + ".data.json"),
-            "w",
-        ) as debugd:
-            json.dump(oracle_result, debugd)
+                os.path.join(self.debug_folder, f"response_oracle{str(step)}.txt"),
+                "w",
+            ) as debugd:
+            debugd.write("\n".join(oracle_response.feedbacks))
+
+        if oracle_response.score_object:
+            with open(
+                os.path.join(self.debug_folder, str(step) + ".data.json"),
+                "w",
+            ) as debugd:
+                json.dump(oracle_response.score_object, debugd)
