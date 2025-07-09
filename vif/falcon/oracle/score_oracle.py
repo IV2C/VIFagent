@@ -9,7 +9,7 @@ import torch
 from PIL import Image
 from collections.abc import Callable
 from openai import Client
-from vif.falcon.oracle.oracle import OracleModule
+from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from vif.models.module import LLMmodule
 from vif.prompts.identification_prompts import PINPOINT_PROMPT
 from vif.utils.detection_utils import get_boxes
@@ -45,6 +45,46 @@ class OracleScoreBoxModule(OracleModule):
             model=model,
         )
 
+    def get_edit_list(
+        self, features: list[str], instruction: str, base_image: Image.Image
+    ):
+        # getting the features to add/delete/modify
+        feature_string = ",".join([f for f in features])
+        pinpoint_instructions = PINPOINT_PROMPT.format(
+            features=feature_string, instruction=instruction
+        )
+        encoded_image = encode_image(base_image)
+        response = self.client.chat.completions.create(
+            model=self.model,
+            temperature=self.temperature,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": pinpoint_instructions,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_image}"
+                            },
+                        },
+                    ],
+                },
+            ],
+        )
+        response = response.choices[0].message.content
+
+        features_to_edit, features_to_delete, features_to_add = tuple(
+            [
+                ast.literal_eval(arr)
+                for arr in response.split("ANSWER:")[1].strip().splitlines()
+            ]
+        )
+        return (features_to_edit, features_to_delete, features_to_add)
+
     def compute_selfembedding(self, features: list[str]):
         # embedding the features
         self.emb_features = self.embedding_model.encode(features)
@@ -57,7 +97,7 @@ class OracleScoreBoxModule(OracleModule):
 
     def get_oracle(
         self, features: list[str], instruction: str, base_image: Image.Image
-    ) -> Callable[[Image.Image], tuple[str,float,Any]]:
+    ) -> Callable[[Image.Image], OracleResponse]:
         logger.info("Creating Oracle")
 
         original_detected_boxes = self.detect_feat_boxes(features, base_image)
@@ -88,7 +128,7 @@ class OracleScoreBoxModule(OracleModule):
         @staticmethod
         def oracle(
             image: Image.Image,
-        ) -> tuple[bool,float,str,Any]:
+        ) -> tuple[bool, str, Any]:
             """Assert that an image solution has edited the right features
 
             Args:
@@ -142,7 +182,8 @@ class OracleScoreBoxModule(OracleModule):
             full_condition = edit_condition and added_condition and deleted_condition
 
             # for observability
-            debug_object = {
+            score_object = {
+                "edit_score": edit_score,
                 "to_add": features_to_add,
                 "to_delete": features_to_delete,
                 "to_edit": features_to_edit,
@@ -172,9 +213,8 @@ class OracleScoreBoxModule(OracleModule):
 
             return (
                 full_condition,
-                edit_score,
                 full_report,
-                debug_object,
+                score_object,
             )
 
         return oracle
