@@ -52,3 +52,51 @@ def save_conversation(messages: list, debug_path: str):
                         message["tool_call_id"] + " : " + message["content"] + "\n"
                     )
             conv.write("_________________________________________________\n")
+
+
+from google import genai
+from google.genai import types as genTypes
+
+
+def save_conversation_google(contents: list[genTypes.Content], debug_path: str):
+    with open(os.path.join(debug_path, "conversation.txt"), "w") as conv:
+        id = 0
+        for content in contents:
+            match content.role:
+                case "model":
+                    conv.write("Assistant:\n")
+                    for part in content.parts:
+                        if part.thought is not None:
+                            conv.write("Thoughts: " + part.text + "\n")
+                        if part.text is not None:
+                            conv.write("Message: " + part.text + "\n")
+                        if part.function_call is not None:
+                            conv.write(
+                                part.function_call.id
+                                + " : "
+                                + part.function_call.name
+                                + f"({part.function_call.args})\n"
+                            )
+                case "user":
+                    conv.write("User:\n")
+                    for part in content.parts:
+                        if part.text is not None:
+                            conv.write("Message: " + part.text + "\n")
+                        if part.file_data is not None:
+                            image_b64 = part.file_data.file_uri
+                            write_base64_to_image(
+                                image_b64,
+                                os.path.join(debug_path, str(id) + ".png"),
+                            )
+                            conv.write(str(id) + "\n")
+                            id += 1
+                case "tool":
+                    for part in content.parts:
+                        conv.write("Tool:\n")
+                        conv.write(
+                            part.function_response.id
+                            + " : "
+                            + part.function_response.response
+                            + "\n"
+                        )
+            conv.write("_________________________________________________\n")

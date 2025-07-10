@@ -14,6 +14,7 @@ class OracleResponse:
     condition: bool
     feedbacks: list[str]
     score_object: Any = None
+    evaluation_code:str = None
 
 
 class OracleModule(LLMmodule):
@@ -27,9 +28,9 @@ class OracleModule(LLMmodule):
     def debug_instance_creation(self, debug: bool, debug_folder: str):
         self.debug = debug
         self.debug_folder = os.path.join(debug_folder, "oracle")
-
-        if debug:
-            os.mkdir(self.debug_folder)
+        if not os.path.exists(self.debug_folder):
+            if debug:
+                os.mkdir(self.debug_folder)
 
     @abstractmethod
     def get_oracle(

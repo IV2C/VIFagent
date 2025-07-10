@@ -148,7 +148,7 @@ class FeatureAgent(LLMmodule):
                             result_render = {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/jpeg;base64,{encoded_image}"
+                                    "url": f"data:image/png;base64,{encoded_image}"
                                 },
                             }
                         if name == "modify_code":
@@ -205,7 +205,7 @@ class FeatureAgent(LLMmodule):
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded_image}"
+                                "url": f"data:image/png;base64,{encoded_image}"
                             },
                         },
                     ],

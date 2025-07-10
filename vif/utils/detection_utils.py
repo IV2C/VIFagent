@@ -12,6 +12,7 @@ import numpy as np
 from openai import OpenAI
 
 from vif.models.detection import SegmentationMask
+from vif.models.exceptions import InvalidMasksError, JsonFormatError, ParsingError
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
 from vif.utils.image_utils import adjust_bbox, encode_image, mse
 
@@ -36,7 +37,7 @@ def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
                     },
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"},
+                        "image_url": {"url": f"data:image/png;base64,{encoded_image}"},
                     },
                 ],
             }
@@ -55,46 +56,52 @@ def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
     return detected_boxes
 
 
+from google import genai
+from google.genai import types as genTypes
+
+
 def get_segmentation_masks(
-    image: Image.Image, client: OpenAI, features, model, temperature
+    image: Image.Image,
+    client: genai.Client,
+    features,
+    model,
+    generate_content_config: genTypes.GenerateContentConfig,
 ):
     encoded_image = encode_image(image=image)
 
-    response = client.chat.completions.create(
+    contents = [
+        genTypes.Content(
+            role="user",
+            parts=[
+                genTypes.Part.from_bytes(
+                    mime_type="image/png",
+                    data=encoded_image,
+                ),
+                genTypes.Part.from_text(
+                    text=SEGMENTATION_PROMPT.format(
+                        labels=", ".join(['"' + feature + '"' for feature in features])
+                    )
+                ),
+            ],
+        ),
+    ]
+    response = client.models.generate_content(
         model=model,
-        temperature=temperature,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": SEGMENTATION_PROMPT.format(
-                            labels=", ".join(
-                                ['"' + feature + '"' for feature in features]
-                            )
-                        ),
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"},
-                    },
-                ],
-            }
-        ],
+        contents=contents,
+        config=generate_content_config,
     )
     pattern = r"```(?:\w+)?\n([\s\S]+?)```"
-    id_match = re.search(pattern, response.choices[0].message.content)
+    id_match = re.search(pattern, response.text)
 
     if not id_match:
-        logger.error(
-            "Error upon getting the segmentation masks : "
-            + response.choices[0].message.content
-        )#TODO might be better to thrown an error and catch it
-        return None
+        logger.error("Error while parsing : " + response.choices[0].message.content)
+        raise ParsingError("Error while parsing {response.choices[0].message.content}")
 
     json_res = id_match.group(1)
-    detected = json.loads(json_res)
+    try:
+        detected = json.loads(json_res)
+    except json.JSONDecodeError as jde:
+        raise JsonFormatError(f"Error while decoding the json {json_res} : {jde}")
     seg_masks = parse_segmentation_masks(detected, image.height, image.width)
     return seg_masks
 
@@ -117,7 +124,7 @@ def parse_segmentation_masks(
         png_str = item["mask"]
         if not png_str.startswith("data:image/png;base64,"):
             print("Invalid mask")
-            continue
+            raise InvalidMasksError(items)
         png_str = png_str.removeprefix("data:image/png;base64,")
         png_str = base64.b64decode(png_str)
         mask = Image.open(io.BytesIO(png_str))
