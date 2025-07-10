@@ -66,7 +66,7 @@ class OracleGuidedCodeModule(OracleModule):
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{encoded_image}"
+                                "url": f"data:image/png;base64,{encoded_image}"
                             },
                         },
                     ],
@@ -75,7 +75,7 @@ class OracleGuidedCodeModule(OracleModule):
         )
         response = response.choices[0].message.content
         pattern = r"```(?:\w+)?\n([\s\S]+?)```"
-        id_match = re.search(pattern, response.choices[0].message.content)
+        id_match = re.search(pattern, response)
 
         if not id_match:
 
@@ -97,7 +97,7 @@ class OracleGuidedCodeModule(OracleModule):
 
         original_detected_segs = features_segments
         # first filtering the features depending on wether they have been detected in the original image
-        features = list(set([seg["label"] for seg in original_detected_segs]))
+        features = list(set([seg.label for seg in original_detected_segs]))
 
         oracle_code = self.get_oracle_code(features, instruction, base_image)
         available_functions = {
@@ -110,26 +110,29 @@ class OracleGuidedCodeModule(OracleModule):
         }
 
         if self.debug:
-            with open(os.path.join(self.debug_folder,"oracle_code.py"),"w") as oracle_file:
+            with open(
+                os.path.join(self.debug_folder, "oracle_code.py"), "w"
+            ) as oracle_file:
                 oracle_file.write(oracle_code)
-        
+
         oracle_code = self.normalize_oracle_function(oracle_code)
         exec(oracle_code, available_functions)
+
         expression: OracleExpression = available_functions["test_valid_customization"]()
 
         @staticmethod
         def oracle(
             image: Image.Image,
         ) -> OracleResponse:
-            custom_detected_segs = detect_seg_masks_boxes(features)
+            custom_detected_segs = detect_seg_masks_boxes(features,image)
             result, feedbacks = expression.evaluate(
                 original_detected_segs, custom_detected_segs, base_image, image
             )
-            return OracleResponse(result, feedbacks)
+            return OracleResponse(result, feedbacks, evaluation_code=oracle_code)
 
         return oracle
 
-    def normalize_oracle_function(function: str):
+    def normalize_oracle_function(self, function: str):
         return (
             function.replace(" and ", " & ").replace(" or ", " | ").replace("not ", "~")
         )
