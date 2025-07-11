@@ -29,12 +29,11 @@ _________________________________________________
 Assistant:
 Message: ```json
 {
-  "description": "A simple graphic containing three basic geometric shapes against a white background: a purple square at the top, a pink triangle on the bottom left, and a green circle on the bottom right.",
+  "description": "A collection of three pastel-colored geometric shapes on a white background. A light purple square is positioned at the top center, a light red triangle is at the bottom left, and a light green circle is at the bottom right.",
   "features": [
-    "Top center light purple square",
+    "Top light purple square",
     "Bottom left light red triangle",
-    "Bottom right light green circle",
-    "White background"
+    "Bottom right light green circle"
   ]
 }
 ```

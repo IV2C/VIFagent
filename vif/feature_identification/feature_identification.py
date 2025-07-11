@@ -75,7 +75,8 @@ class SimpleGeminiIdentificationModule(IdentificationModule):
         except JsonFormatError as jfe:
             logger.error(jfe)
 
-        logger.debug("Found segments " + ",".join(segments))
+        logger.debug("Found segments " + ",".join([repr(seg) for seg in segments]))
+        return segments
 
     def get_features(self, image):
         encoded_image = encode_image(image=image)
@@ -115,6 +116,8 @@ class SimpleGeminiIdentificationModule(IdentificationModule):
         features_match = search_match.group(1)
         return list(json.loads(features_match)["features"])
 
+
+
     def segments_from_features(
         self, features: list[str], base_image: Image.Image
     ) -> list[SegmentationMask]:
@@ -144,11 +147,17 @@ class SimpleGeminiIdentificationModule(IdentificationModule):
                 "w",
             ) as seg_file:
                 json.dump(segments, seg_file,cls=dataclassJSONEncoder)
+            base_image.save(
+                os.path.join(
+                    self.debug_folder,
+                    f"image_{self.segmentation_call_nb}.png",
+                )
+            )
             debug_seg_image = plot_segmentation_masks(base_image, segments)
             debug_seg_image.save(
                 os.path.join(
                     self.debug_folder,
-                    f"segmented_image_{self.segmentation_call_nb}.png",
+                    f"image_{self.segmentation_call_nb}_segmented.png",
                 )
             )
             self.segmentation_call_nb += 1

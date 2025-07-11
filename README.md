@@ -1,6 +1,6 @@
-# VIFagent
+# FALCON
 VIsual and Feature-based agent for code customization 
-
+Feature Aware and Location based agent for COde customizatioN
 ## Overview
 
 Upon receiving an instruction a code, the VIF-agent workflow acts in three steps:

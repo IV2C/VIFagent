@@ -93,8 +93,6 @@ class OracleGuidedCodeModule(OracleModule):
             [list[str], Image.Image], list[SegmentationMask]
         ],
     ) -> Callable[[Image.Image], tuple[str, float, Any]]:
-        logger.info("Creating Oracle")
-
         original_detected_segs = features_segments
         # first filtering the features depending on wether they have been detected in the original image
         features = list(set([seg.label for seg in original_detected_segs]))
