@@ -34,5 +34,5 @@ class OracleModule(LLMmodule):
 
     @abstractmethod
     def get_oracle(
-        self, features: list[str], instruction: str, base_image: Image.Image
+        self, instruction: str, base_image: Image.Image
     ) -> Callable[[Image.Image], OracleResponse]: ...

@@ -4,7 +4,6 @@ from loguru import logger
 from openai import OpenAI
 from vif.CodeMapper.feature import MappedCode
 from vif.CodeMapper.mapping import ZoneIdentificationModule
-from vif.feature_search.feature_search import SearchModule
 from vif.models.code import CodeEdit
 from vif.agent.tool_definitions import *
 from PIL import Image
@@ -29,7 +28,6 @@ class FeatureAgent(LLMmodule):
         model: str,
         code_renderer: Callable[[str], Image.Image],
         temperature: float = 0.0,
-        search_module: SearchModule = None,
         identification_module: ZoneIdentificationModule = None,
         debug=False,
         debug_folder=".tmp/debug",
@@ -50,7 +48,6 @@ class FeatureAgent(LLMmodule):
         )
         self.code_renderer = code_renderer
         self.identification_module = identification_module
-        self.search_module = search_module
         self.conv_data = {
             "get_feature_location_calls": 0,
             "render_code_calls": 0,

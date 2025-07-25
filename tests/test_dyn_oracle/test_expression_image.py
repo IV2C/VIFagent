@@ -1,6 +1,6 @@
 import unittest
 
-from vif.falcon.oracle.dynamic_oracle.expressions import (
+from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
     added,
     angle,

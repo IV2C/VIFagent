@@ -166,7 +166,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
                 edited_image = self.code_renderer(edited_code)
 
                 oracle_response = oracle(edited_image)
-                report = "The resulting image did not satify the instruction, here are some feedback:\n".join(
+                report = "The resulting image did not satify the instruction, here are some feedback:\n"+"\n".join(
                     oracle_response.feedbacks
                 )
                 self.save_debug(
