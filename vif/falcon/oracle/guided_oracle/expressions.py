@@ -3,7 +3,7 @@
 from abc import abstractmethod
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import Any
+from typing import Any, Self
 from PIL import Image
 import numpy as np
 
@@ -27,7 +27,11 @@ basic_colors = [
 ]  # matplotlib tableau colors
 
 
+class FeatureHolder:
+    feature_set: set[str] = set()
+
 class OracleExpression:
+
     def __init__(self):
         pass
 
@@ -58,16 +62,16 @@ class OracleExpression:
 
 
 class OracleCondition(OracleExpression):
+
     def __init__(self, feature: str):
         self.feature = feature
-        pass
+        FeatureHolder.feature_set.add(feature)
 
 
 class OracleBynaryExpr(OracleExpression):
     def __init__(self, exprA: OracleExpression, exprB: OracleExpression):
         self.exprA = exprA
         self.exprB = exprB
-        pass
 
     def evaluate(
         self,
@@ -227,6 +231,8 @@ class placement(OracleCondition):
     def __init__(self, feature: str, other_feature: str, direction: Direction):
         self.other_feature = other_feature
         self.direction = direction
+        FeatureHolder.feature_set.add(other_feature)
+
         super().__init__(feature)
 
     def __invert__(self):
@@ -281,6 +287,7 @@ class position(OracleCondition):
         self.axis = axis
         self.ratio = ratio
         self.negated = False
+        FeatureHolder.feature_set.add(other_feature)
         super().__init__(feature)
 
     def __invert__(self):
@@ -407,7 +414,7 @@ class color(OracleCondition):
         self.negated = True
         return self
 
-    def get_feature_color(self,feature_seg: SegmentationMask, image: Image.Image):
+    def get_feature_color(self, feature_seg: SegmentationMask, image: Image.Image):
         img_np = np.array(image)
 
         masked_pixels = img_np[feature_seg.mask.astype(bool)]
@@ -425,16 +432,16 @@ class color(OracleCondition):
         color_custom = "rgb(" + ",".join([str(co) for co in color_custom]) + ")"
 
         embeddings = color_model.encode([color_custom])
-        embeddings_full_colors = color_model.encode([self.color_expected] + basic_colors)
+        embeddings_full_colors = color_model.encode(
+            [self.color_expected] + basic_colors
+        )
 
-        similarities = color_model.similarity(
-            embeddings, embeddings_full_colors
-        )[0]
+        similarities = color_model.similarity(embeddings, embeddings_full_colors)[0]
         max_sim_color = ([self.color_expected] + basic_colors)[similarities.argmax()]
-        
-        condition = similarities[0]>0.9 or max_sim_color == self.color_expected
+
+        condition = similarities[0] > 0.9 or max_sim_color == self.color_expected
         feedback = f"The color of the feature {self.feature} should have been {self.color_expected}, but is closer to {max_sim_color}."
-        
+
         if self.negated:
             condition = not condition
             feedback = f"The color of the feature {self.feature} should not have been {self.color_expected}, but is still {max_sim_color}."

@@ -26,11 +26,10 @@ class Falcon:
     def __init__(
         self,
         code_renderer: Callable[[str], Image.Image],
-        identification_module: IdentificationModule,
         oracle_module: OracleModule,
         edition_module: EditionModule,
         debug=False,
-        clarify_instruction=True,
+        clarify_instruction=False,
         debug_folder=".tmp/debug",
         mapping_module: MappingModule = None,
     ):
@@ -38,7 +37,6 @@ class Falcon:
 
         self.edition_module = edition_module
         self.oracle_module = oracle_module
-        self.identification_module = identification_module
 
         self.debug = debug
         self.debug_folder = debug_folder
@@ -55,9 +53,6 @@ class Falcon:
         if self.debug:
             inst_debug_folder = os.path.join(self.debug_folder, self._uuid, str(self.debug_instance_nb))
             os.mkdir(inst_debug_folder)
-            self.identification_module.debug_instance_creation(
-                self.debug,inst_debug_folder
-            )
             self.oracle_module.debug_instance_creation(
                 self.debug,inst_debug_folder
             )
@@ -84,23 +79,18 @@ class Falcon:
         # code = "\n".join(line.strip() for line in code.split("\n"))
         # render image
 
-        # VLM to get segmentations of feature
-        logger.info("Identifying features")
-        features_segments = self.identification_module.segments_from_image(base_image)
-        self.features_segments = features_segments
 
         logger.info("Creating the oracle")
         oracle = self.oracle_module.get_oracle(
-            self.features_segments,
             instruction,
             base_image,
-            self.identification_module.segments_from_features,
         )
 
         response_code = self.edition_module.customize(instruction, code, oracle)
 
         return response_code
 
+    #TODO update code to be compaptible with client
     def apply_clarification(self, instruction: str, base_image: Image.Image):
         encoded_image = encode_image(image=base_image)
 
