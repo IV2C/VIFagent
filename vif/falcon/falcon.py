@@ -4,12 +4,11 @@ from collections.abc import Callable
 from PIL import Image
 from vif.CodeMapper.mapping import MappingModule
 from vif.falcon.oracle.oracle import OracleModule
-from vif.feature_identification.feature_identification import IdentificationModule
 from vif.prompts.edition_prompts import SYSTEM_PROMPT_CLARIFY
 from vif.falcon.edition import (
     EditionModule,
 )
-
+import pickle
 
 from loguru import logger
 import sys
@@ -28,9 +27,9 @@ class Falcon:
         code_renderer: Callable[[str], Image.Image],
         oracle_module: OracleModule,
         edition_module: EditionModule,
-        debug=False,
+        observe=False,
         clarify_instruction=False,
-        debug_folder=".tmp/debug",
+        observe_folder=".tmp/debug",
         mapping_module: MappingModule = None,
     ):
         self.code_renderer = code_renderer
@@ -38,59 +37,50 @@ class Falcon:
         self.edition_module = edition_module
         self.oracle_module = oracle_module
 
-        self.debug = debug
-        self.debug_folder = debug_folder
-        self.debug_instance_nb = 0
-        if self.debug:
-            self._uuid = datetime.datetime.now().strftime(r"%d%m-%H:%M:%S")
+        self.observe = observe
+        self.observe_folder = observe_folder
+        if self.observe:
+            self.ds_stored_name = (
+                datetime.datetime.now().strftime(r"%d%m-%H:%M:%S") + ".pickle"
+            )
             logger.warning(
-                f"Debug is activated, debug folder is {os.path.join(self.debug_folder, self._uuid)}"
+                f"The observe parameter is activated, dict will be stored at {os.path.join(self.observe_folder, self.ds_stored_name)}"
             )
-            os.mkdir(os.path.join(self.debug_folder, self._uuid))
+            if not os.path.exists(self.observe_folder):
+                os.mkdir(self.observe_folder)
 
-    def set_instance_debug_folder(self):
-        self.debug_instance_nb += 1
-        if self.debug:
-            inst_debug_folder = os.path.join(self.debug_folder, self._uuid, str(self.debug_instance_nb))
-            os.mkdir(inst_debug_folder)
-            self.oracle_module.debug_instance_creation(
-                self.debug,inst_debug_folder
-            )
-            self.edition_module.debug_instance_creation(
-                self.debug,inst_debug_folder
-            )
+    def apply_instruction(self, code: str, instruction: str, optional_id: str = None):
+        """Applies the instruction to the code, using the settings"""
 
-    def apply_instruction(self, code: str, instruction: str):
-        """Applies the instruction to the code, using the settings
+        if self.observe and optional_id is None:
+            raise ValueError("optionanl_id must be provided if observe is True")
 
-        Args:
-            code (str): _description_
-            instruction (str): _description_
+        if optional_id is None:
+            optional_id = "".join([s[0] for s in instruction.split(" ") if s])
 
-        Returns:
-            _type_: _description_
-        """
-
-
-        self.set_instance_debug_folder()
-        
         base_image = self.code_renderer(code)
 
         # code = "\n".join(line.strip() for line in code.split("\n"))
-        # render image
-
 
         logger.info("Creating the oracle")
-        oracle = self.oracle_module.get_oracle(
-            instruction,
-            base_image,
+        try:
+            oracle = self.oracle_module.get_oracle(instruction, base_image)
+        except AttributeError as ae:
+            logger.error(
+                f"Fatal error during oracle generation, oracle is none{str(ae)}"
+            )
+
+        response_code = self.edition_module.customize(
+            instruction, code, oracle, optional_id
         )
 
-        response_code = self.edition_module.customize(instruction, code, oracle)
-
+        with open(
+            os.path.join(self.observe_folder, self.ds_stored_name + ".pickle"), "wb"
+        ) as obsfile:
+            pickle.dump(self.edition_module.observe_list, obsfile)
         return response_code
 
-    #TODO update code to be compaptible with client
+    # TODO update code to be compaptible with client
     def apply_clarification(self, instruction: str, base_image: Image.Image):
         encoded_image = encode_image(image=base_image)
 
@@ -121,9 +111,9 @@ class Falcon:
         )
 
         new_instruction = response.choices[-1].message.content
-        if self.debug:
+        if self.observe:
             open(
-                os.path.join(self.debug_folder, self.debug_id, "new_instruction.txt"),
+                os.path.join(self.observe_folder, self.debug_id, "new_instruction.txt"),
                 "w",
             ).write(new_instruction)
 
@@ -132,8 +122,7 @@ class Falcon:
     def __str__(self):
         return (
             f"VifAgent("
-            f"search_module={self.search_module}"
-            f"identification_module={self.identification_module}"
+            f"oracle_module={self.oracle_module}"
             f"edition_module={self.edition_module}"
-            f"debug={self.debug}, debug_folder='{self.debug_folder}')"
+            f"observe={self.observe}, observe_folder='{self.observe_folder}')"
         )
