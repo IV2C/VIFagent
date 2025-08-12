@@ -17,7 +17,6 @@ from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PR
 from vif.utils.image_utils import adjust_bbox, encode_image, mse
 
 
-
 def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
     encoded_image = encode_image(image=image)
 
@@ -70,6 +69,8 @@ def get_segmentation_masks(
 ):
     encoded_image = encode_image(image=image)
 
+    logger.info(f"Getting masks for features : {','.join(features)}")
+
     contents = [
         genTypes.Content(
             role="user",
@@ -92,11 +93,19 @@ def get_segmentation_masks(
         config=generate_content_config,
     )
     pattern = r"```(?:\w+)?\n([\s\S]+?)```"
+    if response.text is None:
+        logger.error(f"Error while generating masks: response is None{str(response)}")
+        raise ParsingError(
+            f"Error while parsing response, response is None: {str(response)}"
+        )
+
+    logger.info("LLM segmentation response: " + str(response.text))
+
     id_match = re.search(pattern, response.text)
 
     if not id_match:
-        logger.error("Error while parsing : " + response.choices[0].message.content)
-        raise ParsingError("Error while parsing {response.choices[0].message.content}")
+        logger.error("Error while parsing : " + response.text)
+        raise ParsingError(f"Error while parsing {response.text}")
 
     json_res = id_match.group(1)
     try:
@@ -185,7 +194,9 @@ def dsim_box(
     return box_image_map
 
 
-def plot_segmentation_masks(img: Image.Image, segmentation_masks: list[SegmentationMask])->Image.Image:
+def plot_segmentation_masks(
+    img: Image.Image, segmentation_masks: list[SegmentationMask]
+) -> Image.Image:
     """
     Plots bounding boxes on an image with markers for each a name, using PIL, normalized coordinates, and different colors.
 
@@ -243,6 +254,7 @@ def plot_segmentation_masks(img: Image.Image, segmentation_masks: list[Segmentat
         if mask.label != "":
             draw.text((mask.x0 + 8, mask.y0 - 20), mask.label, fill=color, font=font)
     return img
+
 
 def overlay_mask_on_img(
     img: Image, mask: np.ndarray, color: str, alpha: float = 0.7
