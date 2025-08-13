@@ -12,7 +12,7 @@ from vif.prompts.edition_prompts import IT_PROMPT
 from vif.prompts.oracle_prompts import ORACLE_SYSTEM_PROMPT
 from vif.utils.code_utils import apply_edits, get_annotated_code
 from vif.utils.debug_utils import save_conversation
-
+from openai.types.completion_usage import CompletionUsage
 
 from vif.agent.tool_definitions import *
 import json
@@ -102,6 +102,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
         code: str,
         oracle: Callable[[Image.Image], OracleResponse],
         optional_id: str,
+        oracle_metrics: CompletionUsage = None,
     ):
 
         ["instruction"].append(instruction)
@@ -120,6 +121,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
             messages=messages,
             tools=[modify_code_tool],
         )
+
         for step in range(self.max_iterations):
             messages.append(response.choices[0].message)  # append the llm message
             logger.info(f"LLM response:{response}")
@@ -170,19 +172,24 @@ class OracleEditionModule(EditionModule, LLMmodule):
                 report = str(seg_error)
                 error_type = "seg_error"
 
+            if step != 0:
+                oracle_metrics = {}
+
             # saving for observability
             self.append_observe_row(
-                optional_id,
-                instruction,
-                code,
-                base_image,
-                oracle_response.evaluation_code,
-                step,
-                edited_image,
-                edited_code,
-                oracle_response.condition,
-                report,
-                error_type,
+                id=optional_id,
+                instruction=instruction,
+                original_code=code,
+                original_image=base_image,
+                oracle_code=oracle_response.evaluation_code,
+                turn=step,
+                custom_image=edited_image,
+                custom_code=edited_code,
+                oracle_condition=oracle_response.condition,
+                oracle_report=report,
+                error_type=error_type,
+                edition_usage=response.usage.to_json(),
+                oracle_usage=oracle_metrics.to_json(),
             )
 
             if error_type == "seg_error":
@@ -239,6 +246,8 @@ class OracleEditionModule(EditionModule, LLMmodule):
         oracle_condition,
         oracle_report,
         error_type,
+        edition_usage,
+        oracle_usage,
     ):
         tmp_dict = {}
         tmp_dict["id"] = id
@@ -252,5 +261,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
         tmp_dict["oracle_condition"] = oracle_condition
         tmp_dict["oracle_report"] = oracle_report
         tmp_dict["error_type"] = error_type
+        tmp_dict["edition_usage"] = edition_usage
+        tmp_dict["oracle_usage"] = oracle_usage
 
         self.observe_list.append(tmp_dict)
