@@ -51,6 +51,9 @@ class OracleEditionModule(EditionModule, LLMmodule):
         )
         self.observe_list = []
 
+    def set_existing_observe_list(self, observe_list):
+        self.observe_list = observe_list
+
     def modify_code(self, edits: list, code: str) -> tuple[str, str]:
         try:
             edits = [
@@ -103,8 +106,6 @@ class OracleEditionModule(EditionModule, LLMmodule):
 
         ["instruction"].append(instruction)
 
-        self.observe_list
-
         edited_code = code
         ## Send initial message
         base_image: Image.Image = self.code_renderer(code)
@@ -148,7 +149,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
                     + "\n"
                     + annotated_code
                     + "\n"
-                    + "The resulting image did not satify the instruction, here are some feedback:\n"
+                    + "The resulting image did not satisfy the instruction, here are some feedback:\n"
                     + "\n".join(oracle_response.feedbacks)
                 )
                 error_type = "Oracle"

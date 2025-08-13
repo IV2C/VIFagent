@@ -1,4 +1,4 @@
-ORACLE_SYSTEM_PROMPT: str = '''
+ORACLE_SYSTEM_PROMPT: str = """
 You are a coding assistant specialized in modifying graphic code based on customization instructions.
 
 You will be given a code, the image that this code creates, and instructions to apply on the code.
@@ -127,7 +127,7 @@ Result:
 2|Line one
 3|
 
-'''
+"""
 
 
 ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT: str = '''
@@ -207,6 +207,7 @@ def added(feature: str) -> bool:
 ```
 
 All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle.
+When using these parameters, ensure the features are identifiable both in the initial and modified image, i.e. if the instruction describes a color change, do not use the color as an attribute of the feature, because it will not be the same in the modified image.
 Here are some simple examples in which the image is only described, but in the real setup you will be provided real images:
 
 
@@ -249,20 +250,13 @@ Prompt: Swap the positions of the green star and the purple square, and change t
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-    swapped = placement("purple square", "green_star", direction="left")
-    color_changed = color("purple square", "blue") or color("purple square", "light red")
+    swapped = placement("square", "green_star", direction="left")
+    color_changed = color("square", "blue") or color("square", "light red")
     return swapped and color_changed
 ```
 '''
 
 
-
-
-
-
-ORACLE_CODE_PROMPT:str = """
+ORACLE_CODE_PROMPT: str = """
 - Prompt: {instruction}
 """
-
-
-
