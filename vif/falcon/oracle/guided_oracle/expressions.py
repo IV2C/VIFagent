@@ -3,6 +3,7 @@
 from abc import abstractmethod
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
+import math
 from typing import Any, Self
 from PIL import Image
 import numpy as np
@@ -12,20 +13,11 @@ from vif.utils.image_utils import compute_overlap, crop_with_box, rotate_mask
 
 from sentence_transformers import SentenceTransformer
 
-color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
-basic_colors = [
-    "blue",
-    "orange",
-    "green",
-    "red",
-    "purple",
-    "brown",
-    "pink",
-    "gray",
-    "olive",
-    "cyan",
-]  # matplotlib tableau colors
+import matplotlib.colors as mcolors
 
+color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
+xkcd_colors = [key.removeprefix("xkcd:") for key in mcolors.XKCD_COLORS.keys()]
+accepted_color_ratio = math.floor((1/25) * len(xkcd_colors))
 
 class FeatureHolder:
     feature_set: set[str] = set()
@@ -432,18 +424,23 @@ class color(OracleCondition):
         color_custom = "rgb(" + ",".join([str(co) for co in color_custom]) + ")"
 
         embeddings = color_model.encode([color_custom])
+        all_colors = [self.color_expected] + xkcd_colors
         embeddings_full_colors = color_model.encode(
-            [self.color_expected] + basic_colors
+            all_colors
         )
-
+        
         similarities = color_model.similarity(embeddings, embeddings_full_colors)[0]
-        max_sim_color = ([self.color_expected] + basic_colors)[similarities.argmax()]
+        
+        
+        
+        top_n_indices = np.argsort(-similarities)[:accepted_color_ratio]
+        col_keys_max_sim = np.array(all_colors)[top_n_indices]
 
-        condition = similarities[0] > 0.9 or max_sim_color == self.color_expected
-        feedback = f"The color of the feature {self.feature} should have been {self.color_expected}, but is closer to {max_sim_color}."
+        condition = similarities[0] > 0.9 or self.color_expected in col_keys_max_sim
+        feedback = f"The color of the feature {self.feature} should have been {self.color_expected}, but is closer to {", ".join(col_keys_max_sim[:3])}."
 
         if self.negated:
             condition = not condition
-            feedback = f"The color of the feature {self.feature} should not have been {self.color_expected}, but is still {max_sim_color}."
+            feedback = f"The color of the feature {self.feature} should not have been {self.color_expected}, but is still too close to {self.color_expected}."
 
         return (condition, [feedback] if not condition else [])

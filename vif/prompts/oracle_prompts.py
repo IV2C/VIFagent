@@ -169,7 +169,7 @@ def position(feature: str, other_feature: str, ratio: float, axis: Axis) -> bool
 
 def color(feature: str, expected_color: str) -> bool:
     """
-    Asserts that a feature has a given color.
+    Asserts that a feature has a given color. A precise color must be provided, i.e. the closest one possible to the expected color.
 
     Args:
         feature (str): The name of the feature.

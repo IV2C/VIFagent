@@ -98,7 +98,7 @@ class OracleGuidedCodeModule(OracleModule):
     ) -> Callable[[Image.Image], tuple[str, float, Any]]:
 
         self.segmentation_cache.clear()
-        logger.debug(f"Creating Oracle for instruction{instruction}")
+        logger.info(f"Creating Oracle for instruction {instruction}")
         oracle_code = self.get_oracle_code(instruction, base_image)
         available_functions = {
             "added": added,
