@@ -430,7 +430,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual([expected_feedback], feedback)
 
-    @parameterized.expand(["pale blue", "light blue", "grayish blue"])
+    @parameterized.expand(["pale blue", "light blue", "very light blue"])
     def test_color_valid(self, color_expected):
         import pickle
 
@@ -473,7 +473,7 @@ class TestExpression(unittest.TestCase):
         result, feedback = expression.evaluate(
             original_features, custom_features, original_image, custom_image
         )
-        epected_feedback = f"The color of the feature blue square should have been {color_expected}, but is closer to purple."
+        epected_feedback = f"The color of the feature blue square should have been {color_expected}, but is closer to light periwinkle, light violet, light purple."
 
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)
@@ -501,7 +501,7 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result, feedback)
         self.assertEqual([], feedback)
 
-    @parameterized.expand(["pale blue", "light blue", "grayish blue"])
+    @parameterized.expand(["pale blue", "light blue", "very light blue"])
     def test_color_negated_invalid(self, color_expected):
         import pickle
 
@@ -521,7 +521,7 @@ class TestExpression(unittest.TestCase):
         result, feedback = expression.evaluate(
             original_features, custom_features, original_image, custom_image
         )
-        epected_feedback = f"The color of the feature blue square should not have been {color_expected}, but is still {color_expected}."
+        epected_feedback = f"The color of the feature blue square should not have been {color_expected}, but is still too close to {color_expected}."
 
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)
