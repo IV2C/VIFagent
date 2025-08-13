@@ -113,6 +113,8 @@ def get_segmentation_masks(
     except json.JSONDecodeError as jde:
         raise JsonFormatError(f"Error while decoding the json {json_res} : {jde}")
     seg_masks = parse_segmentation_masks(detected, image.height, image.width)
+    if len(seg_masks) != len(features):
+        raise InvalidMasksError(f"The features {','.join(features)} were not detected.")
     return seg_masks
 
 

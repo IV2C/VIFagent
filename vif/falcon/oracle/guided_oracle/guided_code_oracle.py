@@ -130,6 +130,7 @@ class OracleGuidedCodeModule(OracleModule):
             custom_detected_segs = self.segments_from_features(
                 FeatureHolder.feature_set, image
             )
+            
             result, feedbacks = expression.evaluate(
                 original_detected_segs, custom_detected_segs, base_image, image
             )

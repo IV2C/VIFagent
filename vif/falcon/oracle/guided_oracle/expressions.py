@@ -17,10 +17,12 @@ import matplotlib.colors as mcolors
 
 color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
 xkcd_colors = [key.removeprefix("xkcd:") for key in mcolors.XKCD_COLORS.keys()]
-accepted_color_ratio = math.floor((1/25) * len(xkcd_colors))
+accepted_color_ratio = math.floor((1 / 10) * len(xkcd_colors))
+
 
 class FeatureHolder:
     feature_set: set[str] = set()
+
 
 class OracleExpression:
 
@@ -425,18 +427,18 @@ class color(OracleCondition):
 
         embeddings = color_model.encode([color_custom])
         all_colors = [self.color_expected] + xkcd_colors
-        embeddings_full_colors = color_model.encode(
-            all_colors
-        )
-        
+        embeddings_full_colors = color_model.encode(all_colors)
+
         similarities = color_model.similarity(embeddings, embeddings_full_colors)[0]
-        
-        
-        
+
         top_n_indices = np.argsort(-similarities)[:accepted_color_ratio]
         col_keys_max_sim = np.array(all_colors)[top_n_indices]
 
-        condition = similarities[0] > 0.9 or self.color_expected in col_keys_max_sim
+        condition = (
+            similarities[0] > 0.9
+            or self.color_expected in col_keys_max_sim
+            or any(self.color_expected in cur_col for cur_col in col_keys_max_sim)
+        )
         feedback = f"The color of the feature {self.feature} should have been {self.color_expected}, but is closer to {", ".join(col_keys_max_sim[:3])}."
 
         if self.negated:
