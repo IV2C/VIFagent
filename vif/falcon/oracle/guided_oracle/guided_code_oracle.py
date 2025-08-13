@@ -56,7 +56,7 @@ class OracleGuidedCodeModule(OracleModule):
             model=model,
         )
 
-    def get_oracle_code(self, instruction: str, base_image: Image.Image):
+    def get_oracle_code(self, instruction: str, base_image: Image.Image) -> tuple[str,Any]:
 
         oracle_code_instructions = ORACLE_CODE_PROMPT.format(instruction=instruction)
         encoded_image = encode_image(base_image)
@@ -82,24 +82,33 @@ class OracleGuidedCodeModule(OracleModule):
                 },
             ],
         )
-        response = response.choices[0].message.content
+        cnt = response.choices[0].message.content
         pattern = r"```(?:\w+)?\n([\s\S]+?)```"
-        id_match = re.search(pattern, response)
+        id_match = re.search(pattern, cnt)
 
         if not id_match:
             return None
 
         oracle_method = id_match.group(1)
-        return oracle_method
+        return oracle_method, response.usage
     
     @retry(reraise=True, stop=stop_after_attempt(ORACLE_GENERATION_ATTEMPS))
     def get_oracle(
         self, instruction: str, base_image: Image.Image
-    ) -> Callable[[Image.Image], tuple[str, float, Any]]:
+    ) -> tuple[Callable[[Image.Image], tuple[str, float, Any]],Any]:
+        """Generates the code for the oracle, givne the instruction and the base image
 
+        Args:
+            instruction (str): The instruction the llm will have to apply to the iamge
+            base_image (Image.Image): the base image that the llm will have to edit
+
+        Returns:
+            tuple[Callable[[Image.Image], tuple[str, float, Any]],Any]: A tuple contriaing the function and usage metrics(token counts)
+        """
+        
         self.segmentation_cache.clear()
         logger.info(f"Creating Oracle for instruction {instruction}")
-        oracle_code = self.get_oracle_code(instruction, base_image)
+        oracle_code,res_usage = self.get_oracle_code(instruction, base_image)
         available_functions = {
             "added": added,
             "removed": removed,
@@ -136,7 +145,7 @@ class OracleGuidedCodeModule(OracleModule):
             )
             return OracleResponse(result, feedbacks, evaluation_code=oracle_code)
 
-        return oracle
+        return oracle,res_usage
 
     @retry(reraise=True, stop=stop_after_attempt(SEGMENTATION_ATTEMPS))
     def segments_from_features(

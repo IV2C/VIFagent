@@ -90,14 +90,14 @@ class Falcon:
 
         logger.info("Creating the oracle")
         try:
-            oracle = self.oracle_module.get_oracle(instruction, base_image)
+            oracle,metrics = self.oracle_module.get_oracle(instruction, base_image)
         except AttributeError as ae:
             logger.error(
                 f"Fatal error during oracle generation, oracle is none {str(ae)}"
             )
 
         response_code = self.edition_module.customize(
-            instruction, code, oracle, optional_id
+            instruction, code, oracle, optional_id, metrics
         )
 
         with open(
