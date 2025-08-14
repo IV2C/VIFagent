@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from collections import defaultdict
 from collections.abc import Callable
 import json
 import os
@@ -24,6 +25,7 @@ from vif.utils.image_utils import encode_image
 from vif.falcon.oracle.guided_oracle.expressions import (
     FeatureHolder,
     OracleExpression,
+    SegmentationCache,
     added,
     removed,
     angle,
@@ -49,14 +51,16 @@ class OracleGuidedCodeModule(OracleModule):
         self.visual_client = visual_client
         self.visual_generation_content_config = visual_generation_content_config
         self.visual_model = visual_model
-        self.segmentation_cache: dict[str, SegmentationMask] = dict()
+        self.segmentation_cache: dict[int, list[SegmentationMask]] = defaultdict(list)
         super().__init__(
             client=client,
             temperature=temperature,
             model=model,
         )
 
-    def get_oracle_code(self, instruction: str, base_image: Image.Image) -> tuple[str,Any]:
+    def get_oracle_code(
+        self, instruction: str, base_image: Image.Image
+    ) -> tuple[str, Any]:
 
         oracle_code_instructions = ORACLE_CODE_PROMPT.format(instruction=instruction)
         encoded_image = encode_image(base_image)
@@ -91,11 +95,11 @@ class OracleGuidedCodeModule(OracleModule):
 
         oracle_method = id_match.group(1)
         return oracle_method, response.usage
-    
+
     @retry(reraise=True, stop=stop_after_attempt(ORACLE_GENERATION_ATTEMPS))
     def get_oracle(
         self, instruction: str, base_image: Image.Image
-    ) -> tuple[Callable[[Image.Image], tuple[str, float, Any]],Any]:
+    ) -> tuple[Callable[[Image.Image], tuple[str, float, Any]], Any]:
         """Generates the code for the oracle, givne the instruction and the base image
 
         Args:
@@ -105,18 +109,18 @@ class OracleGuidedCodeModule(OracleModule):
         Returns:
             tuple[Callable[[Image.Image], tuple[str, float, Any]],Any]: A tuple contriaing the function and usage metrics(token counts)
         """
-        
+
         self.segmentation_cache.clear()
         logger.info(f"Creating Oracle for instruction {instruction}")
-        oracle_code,res_usage = self.get_oracle_code(instruction, base_image)
+        oracle_code, res_usage = self.get_oracle_code(instruction, base_image)
+
         available_functions = {
             "added": added,
             "removed": removed,
             "color": color,
             "position": position,
             "placement": placement,
-            "angle": angle,
-            "FeatureHolder": FeatureHolder,
+            "angle": angle
         }
 
         oracle_code = self.normalize_oracle_function(oracle_code)
@@ -130,50 +134,41 @@ class OracleGuidedCodeModule(OracleModule):
         def oracle(
             image: Image.Image,
         ) -> OracleResponse:
-            logger.info("segmenting original image")
-
-            original_detected_segs = self.segments_from_features(
-                FeatureHolder.feature_set, base_image, True
-            )
-            logger.info("segmenting customized image")
-            custom_detected_segs = self.segments_from_features(
-                FeatureHolder.feature_set, image
-            )
-            
             result, feedbacks = expression.evaluate(
-                original_detected_segs, custom_detected_segs, base_image, image
+                base_image, image, self.segments_from_features
             )
             return OracleResponse(result, feedbacks, evaluation_code=oracle_code)
 
-        return oracle,res_usage
+        return oracle, res_usage
 
     @retry(reraise=True, stop=stop_after_attempt(SEGMENTATION_ATTEMPS))
     def segments_from_features(
-        self, features: list[str], image: Image.Image, is_base_image: bool = False
+        self, features: list[str], image: Image.Image
     ) -> list[SegmentationMask]:
-        if is_base_image:
-            to_compute_features = [
-                comp_feat
-                for comp_feat in features
-                if comp_feat not in self.segmentation_cache.keys()
-            ]
-            logger.debug("Features to compute " + ",".join(to_compute_features))
-        else:
-            to_compute_features = features
 
-        segments = []
+        already_computed_label = [
+            label for label in self.segmentation_cache[hash(image.tobytes())]
+        ]
+
+        to_compute_features = [
+            comp_feat
+            for comp_feat in features
+            if comp_feat not in already_computed_label
+        ]
+        logger.info(
+            f"feature detection Cache hit for {','.join([feat for feat in features if  feat not in to_compute_features])}"
+        )
+        logger.info("Features to compute " + ",".join(to_compute_features))
+
+        segments = self.segmentation_cache[hash(image.tobytes())]
         if len(to_compute_features) > 0:
-            segments = get_segmentation_masks(
+            segments += get_segmentation_masks(
                 image,
                 self.visual_client,
                 to_compute_features,
                 self.visual_model,
                 self.visual_generation_content_config,
             )
-        if is_base_image:
-            segments = segments + [
-                seg for feat, seg in self.segmentation_cache if feat in features
-            ]
 
         return segments
 

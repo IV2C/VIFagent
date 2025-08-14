@@ -2,7 +2,9 @@
 
 from abc import abstractmethod
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from dataclasses import dataclass
 import math
 from typing import Any, Self
 from PIL import Image
@@ -18,10 +20,6 @@ import matplotlib.colors as mcolors
 color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
 xkcd_colors = [key.removeprefix("xkcd:") for key in mcolors.XKCD_COLORS.keys()]
 accepted_color_ratio = math.floor((1 / 10) * len(xkcd_colors))
-
-
-class FeatureHolder:
-    feature_set: set[str] = set()
 
 
 class OracleExpression:
@@ -42,10 +40,9 @@ class OracleExpression:
     @abstractmethod
     def evaluate(
         self,
-        original_features: list[SegmentationMask],
-        custom_features: list[SegmentationMask],
         original_image: Image.Image,
         custom_image: Image.Image,
+        segment_function: Callable[[list[str], Image.Image], list[SegmentationMask]],
     ) -> tuple[bool, list[str]]:
         """evaluates the condition
 
@@ -59,7 +56,6 @@ class OracleCondition(OracleExpression):
 
     def __init__(self, feature: str):
         self.feature = feature
-        FeatureHolder.feature_set.add(feature)
 
 
 class OracleBynaryExpr(OracleExpression):
@@ -67,13 +63,7 @@ class OracleBynaryExpr(OracleExpression):
         self.exprA = exprA
         self.exprB = exprB
 
-    def evaluate(
-        self,
-        original_features,
-        custom_features,
-        original_image,
-        custom_image,
-    ):
+    def evaluate(self, original_image, custom_image, segment_function):
         pass
 
 
@@ -82,20 +72,15 @@ class OracleOrExpr(OracleBynaryExpr):
     def __invert__(self):
         return ~self.exprA & ~self.exprB
 
-    def evaluate(
-        self,
-        original_features,
-        custom_features,
-        original_image,
-        custom_image,
-    ):
+    def evaluate(self, original_image, custom_image, segment_function):
         res1, feedback1 = self.exprA.evaluate(
-            original_features, custom_features, original_image, custom_image
+            original_image, custom_image, segment_function
         )
 
         res2, feedback2 = self.exprB.evaluate(
-            original_features, custom_features, original_image, custom_image
+            original_image, custom_image, segment_function
         )
+
         condition = res1 or res2
         if not condition:
             feedbacks = feedback1 + feedback2
@@ -113,19 +98,13 @@ class OracleAndExpr(OracleBynaryExpr):
     def __invert__(self):
         return ~self.exprA | ~self.exprB
 
-    def evaluate(
-        self,
-        original_features,
-        custom_features,
-        original_image,
-        custom_image,
-    ):
+    def evaluate(self, original_image, custom_image, segment_function):
         res1, feedback1 = self.exprA.evaluate(
-            original_features, custom_features, original_image, custom_image
+            original_image, custom_image, segment_function
         )
 
         res2, feedback2 = self.exprB.evaluate(
-            original_features, custom_features, original_image, custom_image
+            original_image, custom_image, segment_function
         )
         feedbacks = feedback1 + feedback2
 
@@ -139,14 +118,11 @@ class added(OracleCondition):
     def __invert__(self):
         return removed(self.feature)
 
-    def evaluate(
-        self,
-        original_features,
-        custom_features,
-        original_image,
-        custom_image,
-    ):
-        condition = any(m.label == self.feature for m in custom_features)
+    def evaluate(self, original_image, custom_image, segment_function):
+        condition = any(
+            m.label == self.feature
+            for m in segment_function([self.feature], custom_image)
+        )
         return (
             condition,
             (
@@ -164,14 +140,11 @@ class removed(OracleCondition):
     def __invert__(self):
         return added(self.feature)
 
-    def evaluate(
-        self,
-        original_features,
-        custom_features,
-        original_image,
-        custom_image,
-    ):
-        condition = all(m.label != self.feature for m in custom_features)
+    def evaluate(self, original_image, custom_image, segment_function):
+        condition = all(
+            m.label != self.feature
+            for m in segment_function([self.feature], custom_image)
+        )
         return (
             condition,
             (
@@ -225,7 +198,6 @@ class placement(OracleCondition):
     def __init__(self, feature: str, other_feature: str, direction: Direction):
         self.other_feature = other_feature
         self.direction = direction
-        FeatureHolder.feature_set.add(other_feature)
 
         super().__init__(feature)
 
@@ -241,11 +213,13 @@ class placement(OracleCondition):
 
         return self
 
-    def evaluate(
-        self, original_features, custom_features, original_image, custom_image
-    ):
-        box_featA = get_seg_for_feature(self.feature, custom_features)
-        box_featB = get_seg_for_feature(self.other_feature, custom_features)
+    def evaluate(self, original_image, custom_image, segment_function):
+        box_featA = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
+        box_featB = get_seg_for_feature(
+            self.other_feature, segment_function([self.feature], custom_image)
+        )
 
         center_boxA = get_box_center(box_featA)
         center_boxB = get_box_center(box_featB)
@@ -281,20 +255,25 @@ class position(OracleCondition):
         self.axis = axis
         self.ratio = ratio
         self.negated = False
-        FeatureHolder.feature_set.add(other_feature)
         super().__init__(feature)
 
     def __invert__(self):
         self.negated = True
         return self
 
-    def evaluate(
-        self, original_features, custom_features, original_image, custom_image
-    ):
-        original_box_featA = get_seg_for_feature(self.feature, original_features)
-        original_box_featB = get_seg_for_feature(self.other_feature, original_features)
-        custom_box_featA = get_seg_for_feature(self.feature, custom_features)
-        custom_box_featB = get_seg_for_feature(self.other_feature, custom_features)
+    def evaluate(self, original_image, custom_image, segment_function):
+        original_box_featA = get_seg_for_feature(
+            self.feature, segment_function([self.feature], original_image)
+        )
+        original_box_featB = get_seg_for_feature(
+            self.other_feature, segment_function([self.feature], original_image)
+        )
+        custom_box_featA = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
+        custom_box_featB = get_seg_for_feature(
+            self.other_feature, segment_function([self.feature], custom_image)
+        )
 
         center_ori_boxA = get_box_center(original_box_featA)
         center_ori_boxB = get_box_center(original_box_featB)
@@ -356,11 +335,13 @@ class angle(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(
-        self, original_features, custom_features, original_image, custom_image
-    ):
-        ori_seg = get_seg_for_feature(self.feature, original_features)
-        custom_seg = get_seg_for_feature(self.feature, custom_features)
+    def evaluate(self, original_image, custom_image, segment_function):
+        ori_seg = get_seg_for_feature(
+            self.feature, segment_function([self.feature], original_image)
+        )
+        custom_seg = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
         ori_box = (ori_seg.x0, ori_seg.x1, ori_seg.y0, ori_seg.y1)
         custom_box = (custom_seg.x0, custom_seg.x1, custom_seg.y0, custom_seg.y1)
         cropped1 = crop_with_box(ori_seg.mask, ori_box)
@@ -416,10 +397,10 @@ class color(OracleCondition):
         most_common = Counter(map(tuple, masked_pixels)).most_common(1)[0][0]
         return most_common
 
-    def evaluate(
-        self, original_features, custom_features, original_image, custom_image
-    ):
-        req_features = get_seg_for_feature(self.feature, custom_features)
+    def evaluate(self, original_image, custom_image, segment_function):
+        req_features = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
 
         color_custom = self.get_feature_color(req_features, custom_image)
 
