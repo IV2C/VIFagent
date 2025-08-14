@@ -1,54 +1,59 @@
 import unittest
 
-from vif.falcon.oracle.dynamic_oracle.expressions import (
-    OracleExpression,
-    added,
-    removed,
-)
+
+from vif.falcon.oracle.guided_oracle.expressions import OracleExpression, added, removed
 from vif.models.detection import SegmentationMask
 from PIL import Image
 
 
 class TestExpression(unittest.TestCase):
 
+    def __init__(self, methodName="runTest"):
+        self.original_image: Image.Image = Image.new("1", (2, 2))
+        self.original_image.putdata([0, 0, 0, 1])
+        self.custom_image: Image.Image = Image.new("1", (2, 2))
+        self.custom_image.putdata([0, 0, 1, 0])
+        super().__init__(methodName)
+
     def test_addition(self):
-        original_features: list[SegmentationMask] = None
         custom_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "triangle")
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+
+        def get_features(features: list[str], image: Image.Image):
+            return custom_features
 
         def test_valid_customization() -> bool:
             return added("triangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
 
     def test_removal(self):
-        original_features: list[SegmentationMask] = None
         custom_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "triangle"),
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+
+        def get_features(features: list[str], image: Image.Image):
+            return custom_features
 
         def test_valid_customization() -> bool:
             return removed("rectangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
 
     def test_and_valid(self):
+
         original_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "circle")
         ]
@@ -57,15 +62,21 @@ class TestExpression(unittest.TestCase):
             SegmentationMask(0, 0, 0, 0, None, "rectangle"),
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return added("rectangle") & added("triangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -78,15 +89,21 @@ class TestExpression(unittest.TestCase):
             SegmentationMask(0, 0, 0, 0, None, "rectangle"),
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return added("rectangle") & added("triangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -100,15 +117,21 @@ class TestExpression(unittest.TestCase):
         custom_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~added("rectangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -122,15 +145,22 @@ class TestExpression(unittest.TestCase):
             SegmentationMask(0, 0, 0, 0, None, "circle"),
             SegmentationMask(0, 0, 0, 0, None, "rectangle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~added("rectangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -146,15 +176,22 @@ class TestExpression(unittest.TestCase):
             SegmentationMask(0, 0, 0, 0, None, "rectangle"),
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~removed("rectangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -167,15 +204,21 @@ class TestExpression(unittest.TestCase):
         custom_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~removed("rectangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -189,15 +232,21 @@ class TestExpression(unittest.TestCase):
         custom_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~removed("rectangle") & added("triangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -216,15 +265,21 @@ class TestExpression(unittest.TestCase):
             SegmentationMask(0, 0, 0, 0, None, "rectangle"),
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return added("rectangle") | added("triangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -236,15 +291,21 @@ class TestExpression(unittest.TestCase):
         custom_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return added("rectangle") | added("triangle")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -261,15 +322,21 @@ class TestExpression(unittest.TestCase):
         custom_features: list[SegmentationMask] = [
             SegmentationMask(0, 0, 0, 0, None, "circle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~(added("rectangle") | added("triangle"))
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -283,15 +350,21 @@ class TestExpression(unittest.TestCase):
             SegmentationMask(0, 0, 0, 0, None, "rectangle"),
             SegmentationMask(0, 0, 0, 0, None, "triangle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~(added("rectangle") | added("triangle"))
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -310,21 +383,24 @@ class TestExpression(unittest.TestCase):
             SegmentationMask(0, 0, 0, 0, None, "circle"),
             SegmentationMask(0, 0, 0, 0, None, "rectangle"),
         ]
-        original_image: Image.Image = None
-        custom_image: Image.Image = None
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
             return ~(added("rectangle") | added("triangle"))
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            original_features, custom_features, original_image, custom_image
+            self.original_image, self.custom_image, get_features
         )
         self.assertFalse(result)
         self.assertEqual(
             ["The feature rectangle is still present in the customized image."],
             feedback,
         )
-
-
-    
