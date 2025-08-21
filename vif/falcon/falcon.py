@@ -79,10 +79,10 @@ class Falcon:
             oracle_worked_try = [row for row in existing_tries if row["oracle_condition"]]
             if len(oracle_worked_try) > 0:
                 logger.warning(f"Skipping id {optional_id}")
-                return oracle_worked_try[0]
+                return oracle_worked_try[0]["custom_code"]
             if len(existing_tries) == self.edition_module.max_iterations:
                 logger.warning(f"Skipping id {optional_id}")
-                return existing_tries[self.edition_module.max_iterations - 1]
+                return existing_tries[self.edition_module.max_iterations - 1]["custom_code"]
 
         base_image = self.code_renderer(code)
 

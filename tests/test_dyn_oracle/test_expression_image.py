@@ -553,7 +553,7 @@ class TestExpression(unittest.TestCase):
         result, feedback = expression.evaluate(
             self.original_image, custom_image, get_features
         )
-        epected_feedback = f"The color of the feature blue square should have been {color_expected}, but is closer to very light purple, light purple, purple."
+        epected_feedback = f"The color of the feature blue square should have been {color_expected}, but is closer to light purple, very light purple, purple."
 
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)

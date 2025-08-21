@@ -12,6 +12,7 @@ from loguru import logger
 import numpy as np
 from openai import OpenAI
 
+from vif.env import SEGMENTATION_ATTEMPS
 from vif.models.detection import SegmentationMask
 from vif.models.exceptions import InvalidMasksError, JsonFormatError, ParsingError
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
@@ -61,21 +62,21 @@ def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
 from google import genai
 from google.genai import types as genTypes
 
-#TODO might need to make these parameters
-full_seg_cache = instantiate_cache(
-    True, ".tmp/cache", "seg_cache"
-)
+# TODO might need to make these parameters
+full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")
+
+
 def key_function(func, *args, **kwargs):
     image = args[0]
     features = args[2]
-    model= args[3]
-    gen_config = args[4]
+    model = args[3]
     func_name = func.__name__
 
     input_hash = hashlib.sha1(
-        str((image,features,model,gen_config, func_name)).encode("utf8")
+        str((hash(image.tobytes()), features, model, func_name)).encode("utf8")
     ).hexdigest()
     return input_hash
+
 
 @CachedRequest(full_seg_cache, key_function, True)
 def get_segmentation_masks(
@@ -83,8 +84,7 @@ def get_segmentation_masks(
     client: genai.Client,
     features,
     model,
-    generate_content_config: genTypes.GenerateContentConfig,
-):
+) -> tuple[list[SegmentationMask, list]]:
     encoded_image = encode_image(image=image)
 
     logger.info(f"Getting masks for features : {','.join(features)}")
@@ -105,35 +105,91 @@ def get_segmentation_masks(
             ],
         ),
     ]
-    response = client.models.generate_content(
-        model=model,
-        contents=contents,
-        config=generate_content_config,
-    )
-    pattern = r"```(?:\w+)?\n([\s\S]+?)```"
-    if response.text is None:
-        logger.error(f"Error while generating masks: response is None{str(response)}")
-        raise ParsingError(
-            f"Error while parsing response, response is None: {str(response)}"
+
+    token_data = []
+    for attempt_nb in range(SEGMENTATION_ATTEMPS):
+
+        response = client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=genTypes.GenerateContentConfig(
+                temperature=0.5,
+                thinking_config=genTypes.ThinkingConfig(thinking_budget=0),
+            ),
         )
+        pattern = r"```(?:\w+)?\n([\s\S]+?)```"
+        logger.info("LLM segmentation response: " + str(response.text))
+        res_meta = response.usage_metadata
 
-    logger.info("LLM segmentation response: " + str(response.text))
+        ## handling none text error ##
+        if response.text is None:
+            error_msg = (
+                f"Error while parsing response, response is None: {str(response)}"
+            )
+            log_and_append_token_data(token_data, res_meta, error_msg)
+            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+                raise ParsingError(error_msg)
+            continue
 
-    id_match = re.search(pattern, response.text)
+        id_match = re.search(pattern, response.text)
 
-    if not id_match:
-        logger.error("Error while parsing : " + response.text)
-        raise ParsingError(f"Error while parsing {response.text}")
+        ## handling parsing error ##
+        if not id_match:
+            error_msg = f"Error while parsing :{response.text}"
 
-    json_res = id_match.group(1)
-    try:
-        detected = json.loads(json_res)
-    except json.JSONDecodeError as jde:
-        raise JsonFormatError(f"Error while decoding the json {json_res} : {jde}")
-    seg_masks = parse_segmentation_masks(detected, image.height, image.width)
-    if len(seg_masks) != len(features):
-        raise InvalidMasksError(f"The features {','.join(features)} were not detected.")
-    return seg_masks
+            log_and_append_token_data(token_data, res_meta, error_msg)
+            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+                raise ParsingError(error_msg)
+            continue
+
+        ## handling json decoding error ##
+        json_res = id_match.group(1)
+        try:
+            detected = json.loads(json_res)
+        except json.JSONDecodeError as jde:
+            error_msg = f"Error while decoding the json {json_res} : {jde}"
+            log_and_append_token_data(token_data, res_meta, error_msg)
+            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+                raise JsonFormatError(
+                    f"Error while decoding the json {json_res} : {jde}"
+                )
+            continue
+        
+        ## handling segmentation mask parsing error ##
+        try:
+            seg_masks = parse_segmentation_masks(detected, image.height, image.width)
+        except InvalidMasksError as ime:
+            log_and_append_token_data(token_data, res_meta, str(ime))
+            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+                raise ime
+            attempt_nb += 1
+            continue
+        ## handling feature number detection error ##
+        if len(seg_masks) < len(features):
+            error_msg = f"The features {','.join(features)} were not detected."
+            log_and_append_token_data(token_data, res_meta, error_msg)
+            
+            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+                raise InvalidMasksError(
+                    error_msg
+                )
+            continue
+        log_and_append_token_data(token_data,res_meta,"Segmentation worked.")
+        break
+
+    return (seg_masks, token_data)
+
+
+def log_and_append_token_data(token_data: list, res_meta, error_info):
+    logger.error(error_info)
+    token_data.append(
+        {
+            "completion_token": res_meta.candidates_token_count,
+            "prompt_token": res_meta.prompt_token_count,
+            "total_tokens": res_meta.total_token_count,
+            "error_info": error_info,
+        }
+    )
 
 
 def parse_segmentation_masks(

@@ -15,6 +15,7 @@ class OracleResponse:
     feedbacks: list[str]
     score_object: Any = None
     evaluation_code:str = None
+    seg_token_usage:dict = None
 
 
 class OracleModule(LLMmodule):

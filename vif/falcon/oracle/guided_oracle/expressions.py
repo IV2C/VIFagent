@@ -41,7 +41,7 @@ def build_basic_colors():
             colors.append(att + basic_color)
     return colors
 basic_colors = build_basic_colors()
-accepted_color_ratio = math.floor((1 / 10) * len(basic_colors))
+accepted_color_ratio = math.floor((2 / 10) * len(basic_colors))
 
 
 class OracleExpression:
