@@ -1,5 +1,6 @@
 import base64
 import dataclasses
+import hashlib
 import io
 import json
 import math
@@ -14,6 +15,7 @@ from openai import OpenAI
 from vif.models.detection import SegmentationMask
 from vif.models.exceptions import InvalidMasksError, JsonFormatError, ParsingError
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
+from vif.utils.caching import CachedRequest, instantiate_cache
 from vif.utils.image_utils import adjust_bbox, encode_image, mse
 
 
@@ -59,7 +61,23 @@ def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
 from google import genai
 from google.genai import types as genTypes
 
+#TODO might need to make these parameters
+full_seg_cache = instantiate_cache(
+    True, ".tmp/cache", "seg_cache"
+)
+def key_function(func, *args, **kwargs):
+    image = args[0]
+    features = args[2]
+    model= args[3]
+    gen_config = args[4]
+    func_name = func.__name__
 
+    input_hash = hashlib.sha1(
+        str((image,features,model,gen_config, func_name)).encode("utf8")
+    ).hexdigest()
+    return input_hash
+
+@CachedRequest(full_seg_cache, key_function, True)
 def get_segmentation_masks(
     image: Image.Image,
     client: genai.Client,

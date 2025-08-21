@@ -3,6 +3,9 @@ VIsual and Feature-based agent for code customization
 Feature Aware and Location based agent for COde customizatioN
 ## Overview
 
+#TODO update the readme according to the latest modifications
+
+
 Upon receiving an instruction a code, the VIF-agent workflow acts in three steps:
 - Search: The search model receives an image and lists all the features in it.
 - Identification: 

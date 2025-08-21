@@ -18,8 +18,30 @@ from sentence_transformers import SentenceTransformer
 import matplotlib.colors as mcolors
 
 color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
-xkcd_colors = [key.removeprefix("xkcd:") for key in mcolors.XKCD_COLORS.keys()]
-accepted_color_ratio = math.floor((1 / 10) * len(xkcd_colors))
+basic_colors = [
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "brown",
+    "purple",
+    "pink",
+    "orange",
+    "grey",
+]
+bw = ["black", "white"]
+attributes = ["very light ", "light ", "", "dark ", "very dark "]
+
+
+def build_basic_colors():
+    colors = bw
+
+    for basic_color in basic_colors:
+        for att in attributes:
+            colors.append(att + basic_color)
+    return colors
+basic_colors = build_basic_colors()
+accepted_color_ratio = math.floor((1 / 10) * len(basic_colors))
 
 
 class OracleExpression:
@@ -378,6 +400,9 @@ class angle(OracleCondition):
         return round(iou, 2), degree_test
 
 
+
+
+
 class color(OracleCondition):
     def __init__(self, feature: str, color_expected: str):
         self.color_expected = color_expected
@@ -407,7 +432,7 @@ class color(OracleCondition):
         color_custom = "rgb(" + ",".join([str(co) for co in color_custom]) + ")"
 
         embeddings = color_model.encode([color_custom])
-        all_colors = [self.color_expected] + xkcd_colors
+        all_colors = [self.color_expected] + basic_colors
         embeddings_full_colors = color_model.encode(all_colors)
 
         similarities = color_model.similarity(embeddings, embeddings_full_colors)[0]
@@ -416,7 +441,7 @@ class color(OracleCondition):
         col_keys_max_sim = np.array(all_colors)[top_n_indices]
 
         condition = (
-            similarities[0] > 0.9
+            similarities[0] > 0.5
             or self.color_expected in col_keys_max_sim
             or any(self.color_expected in cur_col for cur_col in col_keys_max_sim)
         )
