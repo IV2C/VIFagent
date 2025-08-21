@@ -13,19 +13,16 @@ from vif.env import ORACLE_GENERATION_ATTEMPS, SEGMENTATION_ATTEMPS
 from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
 
-from vif.models.detection import SegmentationMask, dataclassJSONEncoder
-from vif.models.exceptions import InvalidMasksError
+from vif.models.detection import SegmentationMask
 from vif.prompts.oracle_prompts import (
     ORACLE_CODE_PROMPT,
     ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
 )
-from vif.utils.detection_utils import get_segmentation_masks, plot_segmentation_masks
+from vif.utils.detection_utils import get_segmentation_masks
 from vif.utils.image_utils import encode_image
 
 from vif.falcon.oracle.guided_oracle.expressions import (
-    FeatureHolder,
     OracleExpression,
-    SegmentationCache,
     added,
     removed,
     angle,
@@ -120,7 +117,7 @@ class OracleGuidedCodeModule(OracleModule):
             "color": color,
             "position": position,
             "placement": placement,
-            "angle": angle
+            "angle": angle,
         }
 
         oracle_code = self.normalize_oracle_function(oracle_code)
@@ -155,10 +152,14 @@ class OracleGuidedCodeModule(OracleModule):
             for comp_feat in features
             if comp_feat not in already_computed_label
         ]
-        logger.info(
-            f"feature detection Cache hit for {','.join([feat for feat in features if  feat not in to_compute_features])}"
-        )
-        logger.info("Features to compute " + ",".join(to_compute_features))
+        cache_hit_features = [
+            feat for feat in features if feat not in to_compute_features
+        ]
+        if len(cache_hit_features) > 0:
+            logger.info(
+                f"feature detection Cache hit for {','.join(cache_hit_features)}"
+            )
+        logger.info("Features to compute :[" + ",".join(to_compute_features)+"]")
 
         segments = self.segmentation_cache[hash(image.tobytes())]
         if len(to_compute_features) > 0:
