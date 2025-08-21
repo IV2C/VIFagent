@@ -42,13 +42,12 @@ class OracleGuidedCodeModule(OracleModule):
         client: Client,
         temperature=0.3,
         visual_client: genai.Client,
-        visual_generation_content_config: genTypes.GenerateContentConfig,
         visual_model: str,
     ):
         self.visual_client = visual_client
-        self.visual_generation_content_config = visual_generation_content_config
         self.visual_model = visual_model
         self.segmentation_cache: dict[int, list[SegmentationMask]] = defaultdict(list)
+        self.segmentation_usage: dict[str, str] = defaultdict(list)
         super().__init__(
             client=client,
             temperature=temperature,
@@ -93,7 +92,8 @@ class OracleGuidedCodeModule(OracleModule):
         oracle_method = id_match.group(1)
         return oracle_method, response.usage
 
-    @retry(reraise=True, stop=stop_after_attempt(ORACLE_GENERATION_ATTEMPS))
+    #If needs to be added back, then it should be implemented manually, with proper obervation 
+    #@retry(reraise=True, stop=stop_after_attempt(ORACLE_GENERATION_ATTEMPS))
     def get_oracle(
         self, instruction: str, base_image: Image.Image
     ) -> tuple[Callable[[Image.Image], tuple[str, float, Any]], Any]:
@@ -131,17 +131,17 @@ class OracleGuidedCodeModule(OracleModule):
         def oracle(
             image: Image.Image,
         ) -> OracleResponse:
+            self.segmentation_usage.clear()
             result, feedbacks = expression.evaluate(
                 base_image, image, self.segments_from_features
             )
-            return OracleResponse(result, feedbacks, evaluation_code=oracle_code)
+            return OracleResponse(result, feedbacks, evaluation_code=oracle_code,seg_token_usage =self.segmentation_usage)
 
         return oracle, res_usage
 
-    @retry(reraise=True, stop=stop_after_attempt(SEGMENTATION_ATTEMPS))
     def segments_from_features(
         self, features: list[str], image: Image.Image
-    ) -> list[SegmentationMask]:
+    ) -> tuple[list[SegmentationMask],Any]:
 
         already_computed_label = [
             label for label in self.segmentation_cache[hash(image.tobytes())]
@@ -159,17 +159,18 @@ class OracleGuidedCodeModule(OracleModule):
             logger.info(
                 f"feature detection Cache hit for {','.join(cache_hit_features)}"
             )
-        logger.info("Features to compute :[" + ",".join(to_compute_features)+"]")
+        logger.info("Features to compute :[" + ",".join(to_compute_features) + "]")
 
         segments = self.segmentation_cache[hash(image.tobytes())]
         if len(to_compute_features) > 0:
-            segments += get_segmentation_masks(
+            segs, token_usage = get_segmentation_masks(
                 image,
                 self.visual_client,
                 to_compute_features,
                 self.visual_model,
-                self.visual_generation_content_config,
             )
+            segments += segs
+            self.segmentation_usage["".join(features)+hash(image.tobytes())] = token_usage
 
         return segments
 

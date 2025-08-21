@@ -39,8 +39,8 @@ def CachedRequest(cache, key_function, is_enabled):
             if not return_value:
                 return_value = func(*args, **kwargs)
                 cache[input_key] = return_value
-                logger.debug("new cache")
-                logger.debug(str(cache))
+                logger.info("new cache")
+                logger.info(str(cache))
             else:
                 logger.warning("Cache hit")
             return return_value

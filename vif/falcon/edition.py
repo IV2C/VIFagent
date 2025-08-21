@@ -190,6 +190,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
                 error_type=error_type,
                 edition_usage=response.usage.to_json(),
                 oracle_usage=oracle_metrics.to_json(),
+                seg_usage = json.dumps(oracle_response.seg_token_usage)
             )
 
             if error_type == "seg_error":
@@ -248,6 +249,7 @@ class OracleEditionModule(EditionModule, LLMmodule):
         error_type,
         edition_usage,
         oracle_usage,
+        seg_usage
     ):
         tmp_dict = {}
         tmp_dict["id"] = id
@@ -263,5 +265,6 @@ class OracleEditionModule(EditionModule, LLMmodule):
         tmp_dict["error_type"] = error_type
         tmp_dict["edition_usage"] = edition_usage
         tmp_dict["oracle_usage"] = oracle_usage
+        tmp_dict["seg_usage"] = seg_usage
 
         self.observe_list.append(tmp_dict)
