@@ -186,6 +186,14 @@ def angle(feature: str, degree: int) -> bool:
         degree (int): The rotation angle in degrees (from -180 to 180).
     """
 
+def size(feature: str, ratio: Tuple[float, float]) -> bool:
+    """
+    Asserts that a feature has been resized by a certain ratio (x,y).
+
+    Args:
+        feature (str): The name of resized feature.
+        ratio (Tuple[float, float]): a tuple containing the ratios by which the feature has been resized on x and y. x and y can be any value >0.
+    """
 
 def removed(feature: str) -> bool:
     """
@@ -253,6 +261,16 @@ def test_valid_customization() -> bool:
     swapped = placement("square", "green_star", direction="left")
     color_changed = color("square", "blue") or color("square", "light red")
     return swapped and color_changed
+```
+
+## Example 5
+Image (description): A blue rectangle of a certain width w and height h.
+Prompt: Make the rectangle twice as tall.
+
+Expected output:
+```python
+def test_valid_customization() -> bool:
+   return size("blue rectangle", (1.0,2.0))
 ```
 '''
 
