@@ -371,7 +371,7 @@ class angle(OracleCondition):
         cropped1 = crop_with_box(ori_seg.mask, ori_box)
         cropped2 = crop_with_box(custom_seg.mask, custom_box)
 
-        degrees = list(range(-180, 180, 5))
+        degrees = list(range(-175, 180, 5))
         args_list = [(deg, cropped1, cropped2) for deg in degrees]
 
         ious = defaultdict(list)
@@ -381,11 +381,11 @@ class angle(OracleCondition):
                 iou, deg = future.result()
                 ious[iou].append(
                     deg
-                )  # using similarity as key make this resistant to rotation invariant
+                )  # using similarity as key make this somewhat resistant to rotation invariant
 
         sorted_IoUs = sorted(ious.items(), reverse=True)
-        sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:3] for iou in ious[1]]
-        condition = any(deg - 3 < self.degree < deg + 3 for deg in sorted_IoUs_degrees)
+        sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:5] for iou in ious[1]]
+        condition = any(deg - 5 <= self.degree <= deg + 5 for deg in sorted_IoUs_degrees)
 
         if self.negated:
             condition = not condition
