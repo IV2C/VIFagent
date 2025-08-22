@@ -33,7 +33,7 @@ class Falcon:
         clarify_instruction=False,
         observe_folder=".tmp/debug",
         mapping_module: MappingModule = None,
-        existing_observe_checkpoint=None,
+        custom_observe_file=None,
     ):
         self.code_renderer = code_renderer
 
@@ -43,13 +43,13 @@ class Falcon:
         self.observe = observe
         self.observe_folder = observe_folder
         if self.observe:
-            if existing_observe_checkpoint is not None:
-                with open(existing_observe_checkpoint, "rb") as pkds:
-                    self.edition_module.set_existing_observe_list(pickle.load(pkds))
-                    logger.warning(
-                        f"An existing observe checkpoint has been provided, execution will resument from {existing_observe_checkpoint}"
-                    )
-                    self.ds_stored_name = existing_observe_checkpoint
+            if custom_observe_file is not None:
+                logger.warning(f"An custom observe file has been provided")
+                if os.path.exists(os.path.join(observe_folder,custom_observe_file)):
+                    logger.warning(f"observe file already exists, execution will resume from {custom_observe_file}")
+                    with open(custom_observe_file, "rb") as pkds:
+                        self.edition_module.set_existing_observe_list(pickle.load(pkds))
+                        self.ds_stored_name = custom_observe_file
             else:
                 self.ds_stored_name = (
                     datetime.datetime.now().strftime(r"%d%m-%H:%M:%S") + ".pickle"
@@ -76,13 +76,17 @@ class Falcon:
                 for row in self.edition_module.observe_list
                 if row["id"] == optional_id
             ]
-            oracle_worked_try = [row for row in existing_tries if row["oracle_condition"]]
+            oracle_worked_try = [
+                row for row in existing_tries if row["oracle_condition"]
+            ]
             if len(oracle_worked_try) > 0:
                 logger.warning(f"Skipping id {optional_id}")
                 return oracle_worked_try[0]["custom_code"]
             if len(existing_tries) == self.edition_module.max_iterations:
                 logger.warning(f"Skipping id {optional_id}")
-                return existing_tries[self.edition_module.max_iterations - 1]["custom_code"]
+                return existing_tries[self.edition_module.max_iterations - 1][
+                    "custom_code"
+                ]
 
         base_image = self.code_renderer(code)
 
@@ -90,7 +94,7 @@ class Falcon:
 
         logger.info("Creating the oracle")
         try:
-            oracle,metrics = self.oracle_module.get_oracle(instruction, base_image)
+            oracle, metrics = self.oracle_module.get_oracle(instruction, base_image)
         except AttributeError as ae:
             logger.error(
                 f"Fatal error during oracle generation, oracle is none {str(ae)}"
