@@ -96,15 +96,15 @@ class OracleGuidedCodeModule(OracleModule):
     #@retry(reraise=True, stop=stop_after_attempt(ORACLE_GENERATION_ATTEMPS))
     def get_oracle(
         self, instruction: str, base_image: Image.Image
-    ) -> tuple[Callable[[Image.Image], tuple[str, float, Any]], Any]:
-        """Generates the code for the oracle, givne the instruction and the base image
+    ) -> tuple[Callable[[Image.Image], OracleResponse], Any]:
+        """Generates the code for the oracle, given the instruction and the base image
 
         Args:
             instruction (str): The instruction the llm will have to apply to the iamge
             base_image (Image.Image): the base image that the llm will have to edit
 
         Returns:
-            tuple[Callable[[Image.Image], tuple[str, float, Any]],Any]: A tuple contriaing the function and usage metrics(token counts)
+            tuple[Callable[[Image.Image], OracleResponse],Any]: A tuple containing the function and usage metrics(token counts)
         """
 
         self.segmentation_cache.clear()
@@ -170,7 +170,7 @@ class OracleGuidedCodeModule(OracleModule):
                 self.visual_model,
             )
             segments += segs
-            self.segmentation_usage["".join(features)+hash(image.tobytes())] = token_usage
+            self.segmentation_usage["".join(features)+str(hash(image.tobytes()))] = token_usage
 
         return segments
 

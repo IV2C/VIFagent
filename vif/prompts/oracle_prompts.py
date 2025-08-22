@@ -203,7 +203,6 @@ def removed(feature: str) -> bool:
         feature (str): The name of the removed feature.
     """
 
-
 def added(feature: str) -> bool:
     """
     Asserts that a feature has been added.

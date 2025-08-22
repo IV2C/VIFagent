@@ -181,7 +181,7 @@ def get_segmentation_masks(
 
 
 def log_and_append_token_data(token_data: list, res_meta, error_info):
-    logger.error(error_info)
+    logger.warning(error_info)
     token_data.append(
         {
             "completion_token": res_meta.candidates_token_count,
