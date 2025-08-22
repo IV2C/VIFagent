@@ -40,6 +40,8 @@ def build_basic_colors():
         for att in attributes:
             colors.append(att + basic_color)
     return colors
+
+
 basic_colors = build_basic_colors()
 accepted_color_ratio = math.floor((2 / 10) * len(basic_colors))
 
@@ -400,9 +402,6 @@ class angle(OracleCondition):
         return round(iou, 2), degree_test
 
 
-
-
-
 class color(OracleCondition):
     def __init__(self, feature: str, color_expected: str):
         self.color_expected = color_expected
@@ -452,3 +451,78 @@ class color(OracleCondition):
             feedback = f"The color of the feature {self.feature} should not have been {self.color_expected}, but is still too close to {self.color_expected}."
 
         return (condition, [feedback] if not condition else [])
+
+
+class size(OracleCondition):
+    def __init__(self, feature: str, ratio: tuple[float, float]):
+        self.ratio = ratio
+        self.negated = False
+        self.delta = 0.15
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self
+
+    def evaluate(self, original_image, custom_image, segment_function):
+        cust_features = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
+        ori_features = get_seg_for_feature(
+            self.feature, segment_function([self.feature], original_image)
+        )
+
+        x_ratio = (cust_features.x1 - cust_features.x0) / (
+            ori_features.x1 - ori_features.x0
+        )
+        y_ratio = (cust_features.y1 - cust_features.y0) / (
+            ori_features.y1 - ori_features.y0
+        )
+
+        feedback = []
+
+        x_condition = (
+            (self.ratio[0] - self.delta * self.ratio[0])
+            < x_ratio
+            < (self.ratio[0] + self.delta * self.ratio[0])
+        )
+        y_condition = (
+            (self.ratio[1] - self.delta * self.ratio[1])
+            < y_ratio
+            < (self.ratio[1] + self.delta * self.ratio[1])
+        )
+
+        condition = x_condition and y_condition
+
+        if self.negated:
+            x_condition and feedback.append(
+               f"The {self.feature} was resized on x by a ratio of {x_ratio}, which is too close to {self.ratio[0]}"
+            )
+            y_condition and feedback.append(
+               f"The {self.feature} was resized on y by a ratio of {y_ratio}, which is too close to {self.ratio[1]}"
+            )
+            return (not condition, feedback if condition else [])
+        else:
+            not x_condition and feedback.append(
+                f"The {self.feature} was resized on x by a ratio of {x_ratio}, but was should have been by a ratio of {self.ratio[0]}"
+            )
+            not y_condition and feedback.append(
+                f"The {self.feature} was resized on y by a ratio of {y_ratio}, but was should have been by a ratio of {self.ratio[1]}"
+            )
+
+            return (condition, feedback if not condition else [])
+
+
+#TODO
+class shape(OracleCondition):
+    def __init__(self, feature: str, ratio: tuple[float, float]):
+        self.ratio = ratio
+        self.negated = False
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self
+
+    def evaluate(self, original_image, custom_image, segment_function):
+       pass
