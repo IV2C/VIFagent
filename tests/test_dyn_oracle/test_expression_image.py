@@ -8,6 +8,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     placement,
     position,
     removed,
+    size,
 )
 from vif.models.detection import SegmentationMask
 from PIL import Image
@@ -618,3 +619,168 @@ class TestExpression(unittest.TestCase):
 
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)
+
+    #### WIP ####
+
+    @parameterized.expand(
+        [
+            ((1, 1.5), (50, 50, 60, 60), (50, 50, 65, 60)),
+            ((2, 2), (50, 50, 60, 60), (45, 50, 65, 70)),
+        ]
+    )
+    def test_resize_valid(self, ratio, box_ori, box_cust):
+        original_features: list[SegmentationMask] = [
+            SegmentationMask(*box_ori, None, "triangle"),
+        ]
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*box_cust, None, "triangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return size("triangle", ratio)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertTrue(result, feedback)
+        self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            (
+                (1, 2),
+                (50, 50, 60, 60),
+                (50, 50, 65, 60),
+                [
+                    "The triangle was resized on y by a ratio of 1.5, but was should have been by a ratio of 2"
+                ],
+            ),
+            (
+                (3, 3),
+                (50, 50, 60, 60),
+                (45, 50, 65, 70),
+                [
+                    "The triangle was resized on x by a ratio of 2.0, but was should have been by a ratio of 3",
+                    "The triangle was resized on y by a ratio of 2.0, but was should have been by a ratio of 3",
+                ],
+            ),
+        ]
+    )
+    def test_resize_invalid(self, ratio, box_ori, box_cust, expected_feedback):
+        original_features: list[SegmentationMask] = [
+            SegmentationMask(*box_ori, None, "triangle"),
+        ]
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*box_cust, None, "triangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return size("triangle", ratio)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(expected_feedback, feedback)
+
+    @parameterized.expand(
+        [
+            (
+                (1, 3),
+                (50, 50, 60, 60),
+                (50, 50, 65, 60),
+            ),
+            (
+                (4, 2),
+                (50, 50, 60, 60),
+                (45, 50, 65, 70),
+            ),
+        ]
+    )
+    def test_resize_negated_valid(self, ratio, box_ori, box_cust):
+        original_features: list[SegmentationMask] = [
+            SegmentationMask(*box_ori, None, "triangle"),
+        ]
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*box_cust, None, "triangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return ~size("triangle", ratio)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertTrue(result)
+        self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            (
+                (0.9, 1.6),
+                (50, 50, 60, 60),
+                (50, 50, 65, 60),
+                [
+                    "The triangle was resized on x by a ratio of 1.0, which is too close to 0.9",
+                    "The triangle was resized on y by a ratio of 1.5, which is too close to 1.6",
+                ],
+            ),
+            (
+                (2.1, 2.1),
+                (50, 50, 60, 60),
+                (45, 50, 65, 70),
+                [
+                    "The triangle was resized on x by a ratio of 2.0, which is too close to 2.1",
+                    "The triangle was resized on y by a ratio of 2.0, which is too close to 2.1",
+                ],
+            ),
+        ]
+    )
+    def test_resize_negated_invalid(self, ratio, box_ori, box_cust, expected_feedback):
+        original_features: list[SegmentationMask] = [
+            SegmentationMask(*box_ori, None, "triangle"),
+        ]
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*box_cust, None, "triangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return ~size("triangle", ratio)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(expected_feedback, feedback)
