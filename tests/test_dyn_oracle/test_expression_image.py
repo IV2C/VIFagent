@@ -1,14 +1,14 @@
+import pickle
 import unittest
 
 from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
-    added,
     angle,
     color,
     placement,
     position,
-    removed,
     size,
+    shape,
 )
 from vif.models.detection import SegmentationMask
 from PIL import Image
@@ -620,8 +620,6 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)
 
-    #### WIP ####
-
     @parameterized.expand(
         [
             ((1, 1.5), (50, 50, 60, 60), (50, 50, 65, 60)),
@@ -784,3 +782,78 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual(expected_feedback, feedback)
+
+    @parameterized.expand(
+        [
+            ("triangle", "triangle"),
+            ("square", "square"),
+            ("circle", "circle"),
+        ]
+    )
+    def test_shape_valid(self, feature, shape_expected):
+        original_features: list[SegmentationMask] = None
+        load_mask = lambda shape_w: pickle.loads(
+            open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(0,0,0,0, load_mask("triangle"), "triangle"),
+            SegmentationMask(0,0,0,0, load_mask("circle"), "circle"),
+            SegmentationMask(0,0,0,0, load_mask("square"), "square"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return shape(feature, shape_expected)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertTrue(result, feedback)
+        self.assertEqual([], feedback)
+
+
+    @parameterized.expand(
+        [
+            ("triangle", "square","triangle,equilateral triangle,rectangle"),
+            ("square", "circle","rectangle,square,cross"),
+            ("circle", "triangle","circle,rectangle,square"),
+        ]
+    )
+    def test_shape_invalid(self, feature, shape_expected,shapes_found):
+        original_features: list[SegmentationMask] = None
+        load_mask = lambda shape_w: pickle.loads(
+            open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(0,0,0,0, load_mask("triangle"), "triangle"),
+            SegmentationMask(0,0,0,0, load_mask("circle"), "circle"),
+            SegmentationMask(0,0,0,0, load_mask("square"), "square"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return shape(feature, shape_expected)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        print(feedback)
+        
+        self.assertFalse(result, feedback)
+        self.assertEqual(f"The feature {feature} should be in the shape of a {shape_expected}, but looks more like a {shapes_found}.", feedback[0])
+        
+        

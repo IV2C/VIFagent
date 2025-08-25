@@ -241,17 +241,6 @@ def get_feature_matches(
     return good_matches, kp1, kp2, image_gray, modified_cv
 
 
-chimp_image = Image.open(".tmp/manual_tests/test_template_match/image.png")
-chimp_modified_image = Image.open(".tmp/manual_tests/test_template_match/modified.png")
-chimp_modified_image_wide = Image.open(
-    ".tmp/manual_tests/test_template_match/modified_wide.png"
-)
-image_original_cv = cv.cvtColor(np.array(chimp_image), cv.COLOR_RGB2BGR)
-image_modified_cv = cv.cvtColor(np.array(chimp_modified_image), cv.COLOR_RGB2BGR)
-image_modified_wide_cv = cv.cvtColor(
-    np.array(chimp_modified_image_wide), cv.COLOR_RGB2BGR
-)
-
 
 def get_repr_cluster(matches: list, kp1: list, kp2: list) -> list:
     """Takes as input a list of feature matches, returns a cluster containing only the features that remain shape between eachother in the train image

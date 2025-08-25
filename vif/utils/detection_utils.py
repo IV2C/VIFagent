@@ -12,7 +12,7 @@ from loguru import logger
 import numpy as np
 from openai import OpenAI
 
-from vif.env import SEGMENTATION_ATTEMPS
+from vif.env import SEGMENTATION_ATTEMPTS
 from vif.models.detection import SegmentationMask
 from vif.models.exceptions import InvalidMasksError, JsonFormatError, ParsingError
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
@@ -107,7 +107,7 @@ def get_segmentation_masks(
     ]
 
     token_data = []
-    for attempt_nb in range(SEGMENTATION_ATTEMPS):
+    for attempt_nb in range(SEGMENTATION_ATTEMPTS):
 
         response = client.models.generate_content(
             model=model,
@@ -127,7 +127,7 @@ def get_segmentation_masks(
                 f"Error while parsing response, response is None: {str(response)}"
             )
             log_and_append_token_data(token_data, res_meta, error_msg)
-            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
                 raise ParsingError(error_msg)
             continue
 
@@ -138,7 +138,7 @@ def get_segmentation_masks(
             error_msg = f"Error while parsing :{response.text}"
 
             log_and_append_token_data(token_data, res_meta, error_msg)
-            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
                 raise ParsingError(error_msg)
             continue
 
@@ -149,7 +149,7 @@ def get_segmentation_masks(
         except json.JSONDecodeError as jde:
             error_msg = f"Error while decoding the json {json_res} : {jde}"
             log_and_append_token_data(token_data, res_meta, error_msg)
-            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
                 raise JsonFormatError(
                     f"Error while decoding the json {json_res} : {jde}"
                 )
@@ -160,7 +160,7 @@ def get_segmentation_masks(
             seg_masks = parse_segmentation_masks(detected, image.height, image.width)
         except InvalidMasksError as ime:
             log_and_append_token_data(token_data, res_meta, str(ime))
-            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
                 raise ime
             attempt_nb += 1
             continue
@@ -169,7 +169,7 @@ def get_segmentation_masks(
             error_msg = f"The features {','.join(features)} were not detected."
             log_and_append_token_data(token_data, res_meta, error_msg)
             
-            if attempt_nb == SEGMENTATION_ATTEMPS - 1:
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
                 raise InvalidMasksError(
                     error_msg
                 )
