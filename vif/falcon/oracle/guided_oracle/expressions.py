@@ -1,5 +1,5 @@
 #################### Oracle condition "function" which actually are classes, for easier feedback creation ###############
-
+import torch
 from abc import abstractmethod
 from collections import Counter, defaultdict
 from collections.abc import Callable
@@ -9,12 +9,15 @@ import math
 from typing import Any, Self
 from PIL import Image
 import numpy as np
+import open_clip
 
 from vif.models.detection import SegmentationMask
 from vif.utils.image_utils import compute_overlap, crop_with_box, rotate_mask
 
 from sentence_transformers import SentenceTransformer
 
+
+### Color oracle settings
 import matplotlib.colors as mcolors
 
 color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
@@ -44,6 +47,49 @@ def build_basic_colors():
 
 basic_colors = build_basic_colors()
 accepted_color_ratio = math.floor((2 / 10) * len(basic_colors))
+
+
+### Shape oracle settings
+shapes = [
+    "point",
+    "line",
+    "ray",
+    "segment",
+    "circle",
+    "ellipse",
+    "oval",
+    "arc",
+    "sector",
+    "segment of circle",
+    "triangle",
+    "equilateral triangle",
+    "isosceles triangle",
+    "scalene triangle",
+    "right triangle",
+    "quadrilateral",
+    "square",
+    "rectangle",
+    "parallelogram",
+    "rhombus",
+    "trapezoid",
+    "kite",
+    "pentagon",
+    "hexagon",
+    "heptagon",
+    "octagon",
+    "nonagon",
+    "decagon",
+    "dodecagon",
+    "star",
+    "crescent",
+    "cross",
+    "polygon",
+    "regular polygon",
+    "irregular polygon",
+]
+
+
+# Boolean expression
 
 
 class OracleExpression:
@@ -385,7 +431,9 @@ class angle(OracleCondition):
 
         sorted_IoUs = sorted(ious.items(), reverse=True)
         sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:5] for iou in ious[1]]
-        condition = any(deg - 5 <= self.degree <= deg + 5 for deg in sorted_IoUs_degrees)
+        condition = any(
+            deg - 5 <= self.degree <= deg + 5 for deg in sorted_IoUs_degrees
+        )
 
         if self.negated:
             condition = not condition
@@ -496,10 +544,10 @@ class size(OracleCondition):
 
         if self.negated:
             x_condition and feedback.append(
-               f"The {self.feature} was resized on x by a ratio of {x_ratio}, which is too close to {self.ratio[0]}"
+                f"The {self.feature} was resized on x by a ratio of {x_ratio}, which is too close to {self.ratio[0]}"
             )
             y_condition and feedback.append(
-               f"The {self.feature} was resized on y by a ratio of {y_ratio}, which is too close to {self.ratio[1]}"
+                f"The {self.feature} was resized on y by a ratio of {y_ratio}, which is too close to {self.ratio[1]}"
             )
             return (not condition, feedback if condition else [])
         else:
@@ -513,16 +561,57 @@ class size(OracleCondition):
             return (condition, feedback if not condition else [])
 
 
-#TODO
+##model settings for shape detection
+clip_model, _, preprocess = open_clip.create_model_and_transforms(
+    "ViT-B-32", pretrained="laion2b_s34b_b79k"
+)
+device = torch.device("cpu")
+clip_model = clip_model.to(device)
+clip_model.eval()
+clip_tokenizer = open_clip.get_tokenizer("ViT-B-32")
+
+
 class shape(OracleCondition):
-    def __init__(self, feature: str, ratio: tuple[float, float]):
-        self.ratio = ratio
+    def __init__(self, feature: str, shape: str):
         self.negated = False
+        self.req_shape = shape
         super().__init__(feature)
 
     def __invert__(self):
         self.negated = True
         return self
 
+    def get_image_features(self, image):
+        image_embedded = preprocess(image).to(device).unsqueeze(0)
+        with torch.no_grad():
+            feat = clip_model.encode_image(image_embedded)  # add batch dim
+            feat /= feat.norm(dim=-1, keepdim=True)
+        return feat
+
     def evaluate(self, original_image, custom_image, segment_function):
-       pass
+        cust_features = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
+        mask_image = Image.fromarray(cust_features.mask)
+
+        all_shapes = shapes + [self.req_shape]
+
+        clip_encoded_shape_names = clip_model.encode_text(clip_tokenizer(all_shapes))
+
+        image_features = self.get_image_features(mask_image)
+        with torch.no_grad(), torch.autocast("cuda"):
+            text_probs = (100.0 * image_features @ clip_encoded_shape_names.T).softmax(
+                dim=-1
+            )
+        top_indice = np.argsort(-text_probs[0])[:3]
+
+        most_similar_shapes = np.array(all_shapes)[top_indice]
+
+        condition = self.req_shape in most_similar_shapes
+        feedback = f"The feature {self.feature} should be in the shape of a {self.req_shape}, but looks more like a {','.join(most_similar_shapes)}."
+
+        if self.negated:
+            condition = not condition
+            feedback = f"The feature {self.feature} should not be in the shape of a {self.req_shape}, but still looks like a {self.req_shape}."
+        
+        return (condition, [feedback] if not condition else [])

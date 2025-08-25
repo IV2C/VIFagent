@@ -9,7 +9,7 @@ from loguru import logger
 from openai import Client
 from tenacity import retry, stop_after_attempt
 
-from vif.env import ORACLE_GENERATION_ATTEMPS, SEGMENTATION_ATTEMPS
+from vif.env import ORACLE_GENERATION_ATTEMPS, SEGMENTATION_ATTEMPTS
 from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
 
