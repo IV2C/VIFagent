@@ -194,7 +194,16 @@ def size(feature: str, ratio: Tuple[float, float]) -> bool:
         feature (str): The name of resized feature.
         ratio (Tuple[float, float]): a tuple containing the ratios by which the feature has been resized on x and y. x and y can be any value >0.
     """
+    
+def wthin(feature: str, other_feature: str) -> bool:
+    """
+    Asserts that a feature is contained in another feature.
 
+    Args:
+        feature (str): The name of the feature contained in "other_feature".
+        other_feature (str): The name of the other feature that contains "feature".
+    """
+    
 def shape(feature: str, shape: str) -> bool:
     """
     Asserts that a feature looks like a certain shape.
@@ -289,6 +298,16 @@ Expected output:
 ```python
 def test_valid_customization() -> bool:
    return shape("left ear","square") and shape("right ear","square") 
+```
+
+## Example 7
+Image (description): A drawing of a face.
+Prompt: Add a nose in the shape of a square.
+
+Expected output:
+```python
+def test_valid_customization() -> bool:
+   return added("nose") and within("nose","face") and shape("nose","square")
 ```
 '''
 

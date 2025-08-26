@@ -31,6 +31,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     color,
     shape,
     size,
+    within,
 )
 from google import genai
 from google.genai import types as genTypes
@@ -122,6 +123,7 @@ class OracleGuidedCodeModule(OracleModule):
             "shape": shape,
             "placement": placement,
             "angle": angle,
+            "within": within,
         }
 
         oracle_code = self.normalize_oracle_function(oracle_code)
