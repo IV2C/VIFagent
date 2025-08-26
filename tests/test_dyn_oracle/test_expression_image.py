@@ -9,6 +9,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     position,
     size,
     shape,
+    within,
 )
 from vif.models.detection import SegmentationMask
 from PIL import Image
@@ -796,9 +797,9 @@ class TestExpression(unittest.TestCase):
             open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
         )
         custom_features: list[SegmentationMask] = [
-            SegmentationMask(0,0,0,0, load_mask("triangle"), "triangle"),
-            SegmentationMask(0,0,0,0, load_mask("circle"), "circle"),
-            SegmentationMask(0,0,0,0, load_mask("square"), "square"),
+            SegmentationMask(0, 0, 0, 0, load_mask("triangle"), "triangle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("circle"), "circle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("square"), "square"),
         ]
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
@@ -818,23 +819,22 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result, feedback)
         self.assertEqual([], feedback)
 
-
     @parameterized.expand(
         [
-            ("triangle", "square","triangle,equilateral triangle,rectangle"),
-            ("square", "circle","rectangle,square,cross"),
-            ("circle", "triangle","circle,rectangle,square"),
+            ("triangle", "square", "triangle,equilateral triangle,rectangle"),
+            ("square", "circle", "rectangle,square,cross"),
+            ("circle", "triangle", "circle,rectangle,square"),
         ]
     )
-    def test_shape_invalid(self, feature, shape_expected,shapes_found):
+    def test_shape_invalid(self, feature, shape_expected, shapes_found):
         original_features: list[SegmentationMask] = None
         load_mask = lambda shape_w: pickle.loads(
             open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
         )
         custom_features: list[SegmentationMask] = [
-            SegmentationMask(0,0,0,0, load_mask("triangle"), "triangle"),
-            SegmentationMask(0,0,0,0, load_mask("circle"), "circle"),
-            SegmentationMask(0,0,0,0, load_mask("square"), "square"),
+            SegmentationMask(0, 0, 0, 0, load_mask("triangle"), "triangle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("circle"), "circle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("square"), "square"),
         ]
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
@@ -852,11 +852,14 @@ class TestExpression(unittest.TestCase):
             self.original_image, self.custom_image, get_features
         )
         print(feedback)
-        
-        self.assertFalse(result, feedback)
-        self.assertEqual(f"The feature {feature} should be in the shape of a {shape_expected}, but looks more like a {shapes_found}.", feedback[0])
 
-#TODO negated shape oracle tests
+        self.assertFalse(result, feedback)
+        self.assertEqual(
+            f"The feature {feature} should be in the shape of a {shape_expected}, but looks more like a {shapes_found}.",
+            feedback[0],
+        )
+
+    # TODO negated shape oracle tests
 
     @parameterized.expand(
         [
@@ -871,9 +874,9 @@ class TestExpression(unittest.TestCase):
             open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
         )
         custom_features: list[SegmentationMask] = [
-            SegmentationMask(0,0,0,0, load_mask("triangle"), "triangle"),
-            SegmentationMask(0,0,0,0, load_mask("circle"), "circle"),
-            SegmentationMask(0,0,0,0, load_mask("square"), "square"),
+            SegmentationMask(0, 0, 0, 0, load_mask("triangle"), "triangle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("circle"), "circle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("square"), "square"),
         ]
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
@@ -893,7 +896,6 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result, feedback)
         self.assertEqual([], feedback)
 
-
     @parameterized.expand(
         [
             ("triangle", "triangle"),
@@ -907,9 +909,9 @@ class TestExpression(unittest.TestCase):
             open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
         )
         custom_features: list[SegmentationMask] = [
-            SegmentationMask(0,0,0,0, load_mask("triangle"), "triangle"),
-            SegmentationMask(0,0,0,0, load_mask("circle"), "circle"),
-            SegmentationMask(0,0,0,0, load_mask("square"), "square"),
+            SegmentationMask(0, 0, 0, 0, load_mask("triangle"), "triangle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("circle"), "circle"),
+            SegmentationMask(0, 0, 0, 0, load_mask("square"), "square"),
         ]
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
@@ -927,6 +929,145 @@ class TestExpression(unittest.TestCase):
             self.original_image, self.custom_image, get_features
         )
         print(feedback)
-        
+
         self.assertFalse(result, feedback)
-        self.assertEqual(f"The feature {feature} should not be in the shape of a {shape_expected}, but still looks like a {shape_expected}.", feedback[0])
+        self.assertEqual(
+            f"The feature {feature} should not be in the shape of a {shape_expected}, but still looks like a {shape_expected}.",
+            feedback[0],
+        )
+
+    # WIP within
+
+    @parameterized.expand(
+        [
+            ((40, 40, 60, 60), (30, 30, 70, 70)),
+            ((40, 40, 50, 50), (40, 40, 60, 60)),
+        ]
+    )
+    def test_within_valid(self, boxA, boxB):
+        original_features: list[SegmentationMask] = None
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*boxA, None, "triangle"),
+            SegmentationMask(*boxB, None, "rectangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return within("triangle", "rectangle")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertTrue(result)
+        self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            ((40, 40, 60, 60), (30, 30, 70, 70)),
+            ((40, 40, 50, 50), (40, 40, 60, 60)),
+        ]
+    )
+    def test_within_invalid(self, boxA, boxB):
+        original_features: list[SegmentationMask] = None
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*boxA, None, "triangle"),
+            SegmentationMask(*boxB, None, "rectangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return within("rectangle", "triangle")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(
+            [
+                f"The feature rectangle should be contained in the feature triangle, but isn't."
+            ],
+            feedback,
+        )
+
+    @parameterized.expand(
+        [
+            ((30, 30, 70, 70), (40, 40, 60, 60)),
+            ((40, 40, 60, 60), (40, 40, 50, 50)),
+        ]
+    )
+    def test_within_negated_valid(self, boxA, boxB):
+        original_features: list[SegmentationMask] = None
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*boxA, None, "triangle"),
+            SegmentationMask(*boxB, None, "rectangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return ~within("triangle", "rectangle")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertTrue(result)
+        self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            ((40, 40, 60, 60), (30, 30, 70, 70)),
+            ((40, 40, 50, 50), (40, 40, 60, 60)),
+        ]
+    )
+    def test_within_negated_invalid(self, boxA, boxB):
+        original_features: list[SegmentationMask] = None
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*boxA, None, "triangle"),
+            SegmentationMask(*boxB, None, "rectangle"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return ~within("triangle", "rectangle")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(
+            [
+                f"The feature triangle should not be contained in the feature rectangle, but is actually within it."
+            ],
+            feedback,
+        )

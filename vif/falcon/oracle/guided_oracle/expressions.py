@@ -615,3 +615,32 @@ class shape(OracleCondition):
             feedback = f"The feature {self.feature} should not be in the shape of a {self.req_shape}, but still looks like a {self.req_shape}."
         
         return (condition, [feedback] if not condition else [])
+
+class within(OracleCondition):
+    def __init__(self, feature: str, other_feature: str):
+        self.other_feature = other_feature
+        self.negated = False
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self
+
+    def evaluate(self, original_image, custom_image, segment_function):
+        custom_box_featA = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
+        custom_box_featB = get_seg_for_feature(
+            self.other_feature, segment_function([self.feature], custom_image)
+        )
+        
+        a_in_b = lambda boxA,boxB : boxA.x0>=boxB.x0 and boxA.y0>=boxB.y0 and boxA.x1<=boxB.y1 and boxA.y1<boxB.y1
+        condition = a_in_b(custom_box_featA,custom_box_featB)
+        
+        feedback = f"The feature {self.feature} should be contained in the feature {self.other_feature}, but isn't."
+
+        if self.negated:
+            condition = not condition
+            feedback = f"The feature {self.feature} should not be contained in the feature {self.other_feature}, but is actually within it."
+        
+        return (condition, [feedback] if not condition else [])
