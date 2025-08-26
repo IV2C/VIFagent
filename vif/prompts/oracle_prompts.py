@@ -195,6 +195,15 @@ def size(feature: str, ratio: Tuple[float, float]) -> bool:
         ratio (Tuple[float, float]): a tuple containing the ratios by which the feature has been resized on x and y. x and y can be any value >0.
     """
 
+def shape(feature: str, shape: str) -> bool:
+    """
+    Asserts that a feature looks like a certain shape.
+
+    Args:
+        feature (str): The name of feature.
+        shape (str): An open string describing the shape of the feature (square, triangle, ellipse,etc.).
+    """
+
 def removed(feature: str) -> bool:
     """
     Asserts that a feature has been removed.
@@ -213,7 +222,7 @@ def added(feature: str) -> bool:
 
 ```
 
-All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle.
+All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle, and must be unambiguous unique features, for example, do not use "circle" if there are two circles in the image.
 When using these parameters, ensure the features are identifiable both in the initial and modified image, i.e. if the instruction describes a color change, do not use the color as an attribute of the feature, because it will not be the same in the modified image.
 Here are some simple examples in which the image is only described, but in the real setup you will be provided real images:
 
@@ -270,6 +279,16 @@ Expected output:
 ```python
 def test_valid_customization() -> bool:
    return size("blue rectangle", (1.0,2.0))
+```
+
+## Example 6
+Image (description): A drawing of a face.
+Prompt: Make the ears in the shape of a square.
+
+Expected output:
+```python
+def test_valid_customization() -> bool:
+   return shape("left ear","square") and shape("right ear","square") 
 ```
 '''
 
