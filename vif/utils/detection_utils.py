@@ -73,7 +73,9 @@ def key_function(func, *args, **kwargs):
     func_name = func.__name__
 
     input_hash = hashlib.sha1(
-        str((hash(image.tobytes()), features, model, func_name)).encode("utf8")
+        str(
+            (hashlib.sha1(image.tobytes()).hexdigest(), features, model, func_name)
+        ).encode("utf8")
     ).hexdigest()
     return input_hash
 
@@ -154,7 +156,7 @@ def get_segmentation_masks(
                     f"Error while decoding the json {json_res} : {jde}"
                 )
             continue
-        
+
         ## handling segmentation mask parsing error ##
         try:
             seg_masks = parse_segmentation_masks(detected, image.height, image.width)
@@ -168,13 +170,11 @@ def get_segmentation_masks(
         if len(seg_masks) < len(features):
             error_msg = f"The features {','.join(features)} were not detected."
             log_and_append_token_data(token_data, res_meta, error_msg)
-            
+
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
-                raise InvalidMasksError(
-                    error_msg
-                )
+                raise InvalidMasksError(error_msg)
             continue
-        log_and_append_token_data(token_data,res_meta,"Segmentation worked.")
+        log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
         break
 
     return (seg_masks, token_data)

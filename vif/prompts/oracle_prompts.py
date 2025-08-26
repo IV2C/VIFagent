@@ -151,7 +151,7 @@ def placement(feature: str, other_feature: str, direction: Direction) -> bool:
     Args:
         feature (str): The name of the first feature.
         other_feature (str): The name of the reference feature.
-        direction (Direction): One of "left", "right", "up", or "down".
+        direction (Direction): One of "left", "right", "over", or "under".
     """
 
 
