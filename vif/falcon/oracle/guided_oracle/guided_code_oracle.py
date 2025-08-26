@@ -29,6 +29,8 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     placement,
     position,
     color,
+    shape,
+    size,
 )
 from google import genai
 from google.genai import types as genTypes
@@ -116,6 +118,8 @@ class OracleGuidedCodeModule(OracleModule):
             "removed": removed,
             "color": color,
             "position": position,
+            "size": size,
+            "shape": shape,
             "placement": placement,
             "angle": angle,
         }
