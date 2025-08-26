@@ -235,8 +235,8 @@ from enum import Enum
 
 class Direction(str, Enum):
     right = "right"
-    up = "up"
-    down = "down"
+    over = "over"
+    under = "under"
     left = "left"
 
 
@@ -275,8 +275,8 @@ class placement(OracleCondition):
         opposite = {
             Direction.left: Direction.right,
             Direction.right: Direction.left,
-            Direction.up: Direction.down,
-            Direction.down: Direction.up,
+            Direction.over: Direction.under,
+            Direction.under: Direction.over,
         }
 
         self.direction = opposite.get(self.direction, self.direction)

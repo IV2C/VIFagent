@@ -12,6 +12,7 @@ from tenacity import retry, stop_after_attempt
 from vif.env import ORACLE_GENERATION_ATTEMPS, SEGMENTATION_ATTEMPTS
 from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
+import hashlib
 
 from vif.models.detection import SegmentationMask
 from vif.prompts.oracle_prompts import (
@@ -145,12 +146,13 @@ class OracleGuidedCodeModule(OracleModule):
 
         return oracle, res_usage
 
+
     def segments_from_features(
         self, features: list[str], image: Image.Image
     ) -> tuple[list[SegmentationMask],Any]:
 
         already_computed_label = [
-            label for label in self.segmentation_cache[hash(image.tobytes())]
+            label for label in self.segmentation_cache[hashlib.sha1(image.tobytes()).hexdigest()]
         ]
 
         to_compute_features = [
@@ -167,7 +169,7 @@ class OracleGuidedCodeModule(OracleModule):
             )
         logger.info("Features to compute :[" + ",".join(to_compute_features) + "]")
 
-        segments = self.segmentation_cache[hash(image.tobytes())]
+        segments = self.segmentation_cache[hashlib.sha1(image.tobytes()).hexdigest()]
         if len(to_compute_features) > 0:
             segs, token_usage = get_segmentation_masks(
                 image,
@@ -176,7 +178,7 @@ class OracleGuidedCodeModule(OracleModule):
                 self.visual_model,
             )
             segments += segs
-            self.segmentation_usage["".join(features)+str(hash(image.tobytes()))] = token_usage
+            self.segmentation_usage["".join(features)+str(hashlib.sha1(image.tobytes()).hexdigest())] = token_usage
 
         return segments
 
