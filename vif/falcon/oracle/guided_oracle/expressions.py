@@ -4,23 +4,18 @@ from abc import abstractmethod
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from dataclasses import dataclass
 import math
-from typing import Any, Self
 from PIL import Image
 import numpy as np
 import open_clip
 
 from vif.models.detection import SegmentationMask
-from vif.utils.image_utils import compute_overlap, crop_with_box, rotate_mask
+from vif.utils.image_utils import compute_overlap, crop_with_box, image_from_color_count, rotate_mask, apply_mask
 
-from sentence_transformers import SentenceTransformer
 
 
 ### Color oracle settings
-import matplotlib.colors as mcolors
 
-color_model = SentenceTransformer("CharlyR/clip_distilled_rgb_emb")
 basic_colors = [
     "red",
     "green",
@@ -37,16 +32,16 @@ attributes = ["very light ", "light ", "", "dark ", "very dark "]
 
 
 def build_basic_colors():
-    colors = bw
+    colors_out = bw
 
     for basic_color in basic_colors:
         for att in attributes:
-            colors.append(att + basic_color)
-    return colors
+            colors_out.append(att + basic_color)
+    return [color_out + " color" for color_out in colors_out]
 
 
 basic_colors = build_basic_colors()
-accepted_color_ratio = math.floor((2 / 10) * len(basic_colors))
+accepted_color_ratio = math.floor((3 / 20) * len(basic_colors))
 
 
 ### Shape oracle settings
@@ -303,11 +298,11 @@ class placement(OracleCondition):
                 lambda m1, m2: m1[0] > m2[0],
                 f"The feature {self.feature} is not on the right of the feature {self.other_feature}",
             ),
-            Direction.up: (
+            Direction.over: (
                 lambda m1, m2: m1[1] < m2[1],
                 f"The feature {self.feature} is not above the feature {self.other_feature}",
             ),
-            Direction.down: (
+            Direction.under: (
                 lambda m1, m2: m1[1] > m2[1],
                 f"The feature {self.feature} is not under the feature {self.other_feature}",
             ),
@@ -452,7 +447,7 @@ class angle(OracleCondition):
 
 class color(OracleCondition):
     def __init__(self, feature: str, color_expected: str):
-        self.color_expected = color_expected
+        self.color_expected = color_expected + " color"
         self.negated = False
 
         super().__init__(feature)
@@ -460,43 +455,56 @@ class color(OracleCondition):
     def __invert__(self):
         self.negated = True
         return self
-
-    def get_feature_color(self, feature_seg: SegmentationMask, image: Image.Image):
+    
+    def get_feature_colors(self, feature_seg: SegmentationMask, image: Image.Image):
         img_np = np.array(image)
 
         masked_pixels = img_np[feature_seg.mask.astype(bool)]
+        
+        most_common = Counter(map(tuple, masked_pixels)).most_common()
+        ratio_common = int(0.9*len(most_common))
+        return most_common[:ratio_common]
 
-        most_common = Counter(map(tuple, masked_pixels)).most_common(1)[0][0]
-        return most_common
+    def get_image_features(self, image):
+        image_embedded = preprocess(image).to(device).unsqueeze(0)
+        with torch.no_grad():
+            feat = clip_model.encode_image(image_embedded)  # add batch dim
+            feat /= feat.norm(dim=-1, keepdim=True)
+        return feat
 
     def evaluate(self, original_image, custom_image, segment_function):
-        req_features = get_seg_for_feature(
+        cust_features = get_seg_for_feature(
             self.feature, segment_function([self.feature], custom_image)
         )
+        custom_colors_counts = self.get_feature_colors(cust_features,custom_image)
+        color_image = image_from_color_count(custom_colors_counts)
+             
 
-        color_custom = self.get_feature_color(req_features, custom_image)
+        eval_colors = [self.color_expected] + basic_colors 
 
-        color_custom = "rgb(" + ",".join([str(co) for co in color_custom]) + ")"
+        clip_encoded_color_names = clip_model.encode_text(clip_tokenizer(eval_colors))
 
-        embeddings = color_model.encode([color_custom])
-        all_colors = [self.color_expected] + basic_colors
-        embeddings_full_colors = color_model.encode(all_colors)
+        image_features = self.get_image_features(color_image)
+        with torch.no_grad(), torch.autocast("cuda"):
+            text_probs = (100.0 * image_features @ clip_encoded_color_names.T).softmax(
+                dim=-1
+            )[0]
+        top_indice = np.argsort(-text_probs)[:accepted_color_ratio]
 
-        similarities = color_model.similarity(embeddings, embeddings_full_colors)[0]
-
-        top_n_indices = np.argsort(-similarities)[:accepted_color_ratio]
-        col_keys_max_sim = np.array(all_colors)[top_n_indices]
+        most_similar_colors = np.array(eval_colors)[top_indice]
 
         condition = (
-            similarities[0] > 0.5
-            or self.color_expected in col_keys_max_sim
-            or any(self.color_expected in cur_col for cur_col in col_keys_max_sim)
+            text_probs[0] > 0.5
+            or self.color_expected in most_similar_colors
+            or any(self.color_expected in cur_col for cur_col in most_similar_colors)
         )
-        feedback = f"The color of the feature {self.feature} should have been {self.color_expected}, but is closer to {", ".join(col_keys_max_sim[:3])}."
+        
+        
+        feedback = f"The color of the feature {self.feature} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in most_similar_colors[:3]])}."
 
         if self.negated:
             condition = not condition
-            feedback = f"The color of the feature {self.feature} should not have been {self.color_expected}, but is still too close to {self.color_expected}."
+            feedback = f"The color of the feature {self.feature} should not have been {self.color_expected.removesuffix(" color")}, but is still too close to {self.color_expected.removesuffix(" color")}."
 
         return (condition, [feedback] if not condition else [])
 
