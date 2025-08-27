@@ -70,11 +70,30 @@ def adjust_bbox(box, image: Image.Image):
     box["box_2d"] = new_box
     return box
 
+import statistics
+def image_from_color_count(color_count:list[tuple[tuple, int]]) ->Image.Image:
+    total_count = sum([c[1] for c in color_count])
+    width = 1000
+    
+    ratios = [(c[1]/total_count) for c in color_count]
+    avg_ratio = statistics.quantiles(ratios,n=5)[0]
+    
+    
+    final_image = []
+    
+    for c,ratio in zip(color_count,ratios):
+        if(ratio<=avg_ratio):
+            continue
+        lines_added = int(ratio*width)
+        for _ in range(lines_added):
+            final_image.append([c[0] for _ in range(width)])
+    final_image = Image.fromarray(np.array(final_image))
+    return final_image
+
+
 
 import cv2 as cv
 import numpy.typing as npt
-
-
 
 
 
@@ -435,4 +454,24 @@ def compute_overlap(rotated_mask1, mask2):
     intersection = np.logical_and(m1_p, m2_p)
     union = np.logical_or(m1_p, m2_p)
     
-    return intersection.sum() / union.sum() 
+    return intersection.sum() / union.sum()
+
+
+def apply_mask(image: Image.Image, mask: np.ndarray) -> Image.Image:
+    """
+    Return a new image where only masked pixels are kept, 
+    others are transparent.
+
+    :param image: PIL Image (RGB or RGBA)
+    :param mask: 2D numpy array of booleans or {0,1}
+    """
+    if image.mode != "RGBA":
+        image = image.convert("RGBA")
+
+    mask_bool = mask.astype(bool)
+
+    img_arr = np.array(image)
+
+    img_arr[..., 3] = np.where(mask_bool, img_arr[..., 3], 0)
+
+    return Image.fromarray(img_arr, "RGBA")

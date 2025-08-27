@@ -29,8 +29,8 @@ class TestExpression(unittest.TestCase):
         [
             ("right", (40, 40, 60, 60), (40, 30, 60, 50)),
             ("left", (40, 30, 60, 50), (40, 40, 60, 60)),
-            ("up", (30, 40, 50, 60), (40, 40, 60, 60)),
-            ("down", (40, 40, 60, 60), (30, 40, 50, 60)),
+            ("over", (30, 40, 50, 60), (40, 40, 60, 60)),
+            ("under", (40, 40, 60, 60), (30, 40, 50, 60)),
         ]
     )
     def test_placement_valid(self, direction, boxA, boxB):
@@ -73,13 +73,13 @@ class TestExpression(unittest.TestCase):
                 "The feature triangle is not on the right of the feature rectangle",
             ),
             (
-                "down",
+                "under",
                 (30, 40, 50, 60),
                 (40, 40, 60, 60),
                 "The feature triangle is not under the feature rectangle",
             ),
             (
-                "up",
+                "over",
                 (40, 40, 60, 60),
                 (30, 40, 50, 60),
                 "The feature triangle is not above the feature rectangle",
@@ -126,13 +126,13 @@ class TestExpression(unittest.TestCase):
                 "The feature triangle is not on the right of the feature rectangle",
             ),
             (
-                "down",
+                "under",
                 (30, 40, 50, 60),
                 (40, 40, 60, 60),
                 "The feature triangle is not under the feature rectangle",
             ),
             (
-                "up",
+                "over",
                 (40, 40, 60, 60),
                 (30, 40, 50, 60),
                 "The feature triangle is not above the feature rectangle",
@@ -499,7 +499,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual([expected_feedback], feedback)
 
-    @parameterized.expand(["pale blue", "light blue", "very light blue"])
+    @parameterized.expand(["pale blue", "light blue", "blue"])
     def test_color_valid(self, color_expected):
         import pickle
 
@@ -529,6 +529,37 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result, feedback)
         self.assertEqual([], feedback)
 
+    @parameterized.expand(["blue and purple"])
+    def test_color_dual_valid(self, color_expected):
+        import pickle
+
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/rgb_stc.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/rgbp_stc.pickle", "rb").read()
+        )
+        custom_image: Image.Image = Image.open("tests/resources/seg/rgbp_stc.png")
+
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return color("square", color_expected)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, custom_image, get_features
+        )
+        self.assertTrue(result, feedback)
+        self.assertEqual([], feedback)
+
+
     @parameterized.expand(["white", "green", "yellowish gray"])
     def test_color_invalid(self, color_expected):
         import pickle
@@ -555,7 +586,7 @@ class TestExpression(unittest.TestCase):
         result, feedback = expression.evaluate(
             self.original_image, custom_image, get_features
         )
-        epected_feedback = f"The color of the feature blue square should have been {color_expected}, but is closer to light purple, very light purple, purple."
+        epected_feedback = f"The color of the feature blue square should have been {color_expected}, but is closer to very light purple, light purple, very light blue."
 
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)
