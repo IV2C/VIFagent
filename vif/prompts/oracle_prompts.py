@@ -232,8 +232,10 @@ def added(feature: str) -> bool:
 ```
 
 All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle, and must be unambiguous unique features, for example, do not use "circle" if there are two circles in the image.
-When using these parameters, ensure the features are identifiable both in the initial and modified image, i.e. if the instruction describes a color change, do not use the color as an attribute of the feature, because it will not be the same in the modified image.
-Here are some simple examples in which the image is only described, but in the real setup you will be provided real images:
+You can give very detailed description of the feature you are searching for to make them unambiguous. When using these parameters, ensure the features are identifiable both in the initial and modified image.
+For example, if the instruction describes a color change, do not use the color as an attribute of the feature because it will not be the same in the modified image.
+The examples below show examples with overly simple features, in the real case you will have to provide highly detailed and higher level features. 
+Here are some very simple examples in which the image is only described, but in the real setup you will be provided real images:
 
 
 ## Example 1
