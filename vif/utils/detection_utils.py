@@ -119,6 +119,7 @@ def get_segmentation_masks(
                 thinking_config=genTypes.ThinkingConfig(thinking_budget=0),
             ),
         )
+        
         pattern = r"```(?:\w+)?\n([\s\S]+?)```"
         logger.info("LLM segmentation response: " + str(response.text))
         res_meta = response.usage_metadata
