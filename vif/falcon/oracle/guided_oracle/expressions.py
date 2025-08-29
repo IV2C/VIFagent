@@ -10,8 +10,13 @@ import numpy as np
 import open_clip
 
 from vif.models.detection import SegmentationMask
-from vif.utils.image_utils import compute_overlap, crop_with_box, image_from_color_count, rotate_mask, apply_mask
-
+from vif.utils.image_utils import (
+    compute_overlap,
+    crop_with_box,
+    image_from_color_count,
+    rotate_mask,
+    apply_mask,
+)
 
 
 ### Color oracle settings
@@ -455,14 +460,14 @@ class color(OracleCondition):
     def __invert__(self):
         self.negated = True
         return self
-    
+
     def get_feature_colors(self, feature_seg: SegmentationMask, image: Image.Image):
         img_np = np.array(image)
 
         masked_pixels = img_np[feature_seg.mask.astype(bool)]
-        
+
         most_common = Counter(map(tuple, masked_pixels)).most_common()
-        ratio_common = int(0.9*len(most_common))
+        ratio_common = int(0.9 * len(most_common))
         return most_common[:ratio_common]
 
     def get_image_features(self, image):
@@ -476,11 +481,10 @@ class color(OracleCondition):
         cust_features = get_seg_for_feature(
             self.feature, segment_function([self.feature], custom_image)
         )
-        custom_colors_counts = self.get_feature_colors(cust_features,custom_image)
+        custom_colors_counts = self.get_feature_colors(cust_features, custom_image)
         color_image = image_from_color_count(custom_colors_counts)
-             
 
-        eval_colors = [self.color_expected] + basic_colors 
+        eval_colors = [self.color_expected] + basic_colors
 
         clip_encoded_color_names = clip_model.encode_text(clip_tokenizer(eval_colors))
 
@@ -498,8 +502,7 @@ class color(OracleCondition):
             or self.color_expected in most_similar_colors
             or any(self.color_expected in cur_col for cur_col in most_similar_colors)
         )
-        
-        
+
         feedback = f"The color of the feature {self.feature} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in most_similar_colors[:3]])}."
 
         if self.negated:
@@ -621,8 +624,9 @@ class shape(OracleCondition):
         if self.negated:
             condition = not condition
             feedback = f"The feature {self.feature} should not be in the shape of a {self.req_shape}, but still looks like a {self.req_shape}."
-        
+
         return (condition, [feedback] if not condition else [])
+
 
 class within(OracleCondition):
     def __init__(self, feature: str, other_feature: str):
@@ -641,14 +645,19 @@ class within(OracleCondition):
         custom_box_featB = get_seg_for_feature(
             self.other_feature, segment_function([self.feature], custom_image)
         )
-        
-        a_in_b = lambda boxA,boxB : boxA.x0>=boxB.x0 and boxA.y0>=boxB.y0 and boxA.x1<=boxB.y1 and boxA.y1<boxB.y1
-        condition = a_in_b(custom_box_featA,custom_box_featB)
-        
+
+        a_in_b = (
+            lambda boxA, boxB: boxA.x0 >= boxB.x0
+            and boxA.y0 >= boxB.y0
+            and boxA.x1 <= boxB.y1
+            and boxA.y1 < boxB.y1
+        )
+        condition = a_in_b(custom_box_featA, custom_box_featB)
+
         feedback = f"The feature {self.feature} should be contained in the feature {self.other_feature}, but isn't."
 
         if self.negated:
             condition = not condition
             feedback = f"The feature {self.feature} should not be contained in the feature {self.other_feature}, but is actually within it."
-        
+
         return (condition, [feedback] if not condition else [])
