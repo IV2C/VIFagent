@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -26,8 +26,8 @@ def test_valid_customization() -> bool:
         and placement(anot + "4","bottom-right black filled rectangle","right")
     )
     return (
-        added(anot + "1")
-        and added(anot + "2")
-        and added(anot + "3")
-        and added(anot + "4")
+        present(anot + "1")
+        and present(anot + "2")
+        and present(anot + "3")
+        and present(anot + "4")
     ) and position_over and position_right

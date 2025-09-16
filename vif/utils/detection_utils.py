@@ -80,13 +80,77 @@ def key_function(func, *args, **kwargs):
     return input_hash
 
 
+def get_mask_seg_logbprob(response):
+    """
+    Print log probabilities for each token in the response
+    """
+
+    probs = []
+    if response.candidates and response.candidates[0].logprobs_result:
+        logprobs_result = response.candidates[0].logprobs_result
+        i = 0
+        while i < len(logprobs_result.chosen_candidates):
+            chosen_candidate = logprobs_result.chosen_candidates[i]
+            if "{" in chosen_candidate.token:
+                current_detection = {}
+                i += 1
+                current_string = ""
+                while "}" not in chosen_candidate.token:
+                    chosen_candidate = logprobs_result.chosen_candidates[i]
+                    current_string += chosen_candidate.token
+                    if 'box_2d": [' in current_string:
+                        i += 1
+                        chosen_candidate = logprobs_result.chosen_candidates[i]
+                        box_prob_l = []
+                        while "]" not in chosen_candidate.token:
+                            if chosen_candidate.token.isdigit():
+                                box_prob_l.append(chosen_candidate.log_probability)
+                            i += 1
+                            chosen_candidate = logprobs_result.chosen_candidates[i]
+                        current_detection["box_prob"] = math.exp(
+                            sum(box_prob_l) / len(box_prob_l)
+                        )
+                        current_string = ""
+                    elif 'label": "' in current_string:
+                        i += 1
+                        chosen_candidate = logprobs_result.chosen_candidates[i]
+                        cur_label = ""
+                        while '"' not in chosen_candidate.token:
+                            cur_label += chosen_candidate.token
+                            i += 1
+                            chosen_candidate = logprobs_result.chosen_candidates[i]
+                        current_detection["label"] = cur_label
+                        current_string = ""
+                    elif 'mask": "' in current_string:
+                        i += 1
+                        chosen_candidate = logprobs_result.chosen_candidates[i]
+                        seg_prob_l = []
+                        while '"' not in chosen_candidate.token:
+                            if (
+                                "<" in chosen_candidate.token
+                                and not "<start_of_mask>" in chosen_candidate.token
+                            ):
+                                seg_prob_l.append(chosen_candidate.log_probability)
+                            i += 1
+                            chosen_candidate = logprobs_result.chosen_candidates[i]
+                        current_detection["seg_prob"] = math.exp(
+                            sum(seg_prob_l) / len(seg_prob_l)
+                        )
+                        current_string = ""
+                    else:
+                        i += 1
+                probs.append(current_detection)
+            i += 1
+    return probs
+
+
 @CachedRequest(full_seg_cache, key_function, True)
 def get_segmentation_masks(
     image: Image.Image,
     client: genai.Client,
     features,
     model,
-) -> tuple[list[SegmentationMask, list]]:
+) -> tuple[list[SegmentationMask], list]:
     encoded_image = encode_image(image=image)
 
     logger.info(f"Getting masks for features : {','.join(features)}")
@@ -117,9 +181,11 @@ def get_segmentation_masks(
             config=genTypes.GenerateContentConfig(
                 temperature=0.5,
                 thinking_config=genTypes.ThinkingConfig(thinking_budget=0),
+                response_logprobs=True,
+                logprobs=1,
             ),
         )
-        
+
         pattern = r"```(?:\w+)?\n([\s\S]+?)```"
         logger.info("LLM segmentation response: " + str(response.text))
         res_meta = response.usage_metadata
@@ -178,6 +244,20 @@ def get_segmentation_masks(
         log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
         break
 
+    log_probs = get_mask_seg_logbprob(response)
+
+    for seg_mask in seg_masks:
+        seg_mask.box_prob = next(
+            log_prob["box_prob"]
+            for log_prob in log_probs
+            if log_prob["label"] == seg_mask.label
+        )
+        seg_mask.seg_prob = next(
+            log_prob["seg_prob"]
+            for log_prob in log_probs
+            if log_prob["label"] == seg_mask.label
+        )
+
     return (seg_masks, token_data)
 
 
@@ -225,6 +305,7 @@ def parse_segmentation_masks(
         )
         np_mask = np.zeros((img_height, img_width), dtype=np.uint8)
         np_mask[abs_y0:abs_y1, abs_x0:abs_x1] = mask
+        np_mask = np_mask.astype(bool)
         masks.append(SegmentationMask(abs_y0, abs_x0, abs_y1, abs_x1, np_mask, label))
     return masks
 

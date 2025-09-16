@@ -213,22 +213,23 @@ def shape(feature: str, shape: str) -> bool:
         shape (str): An open string describing the shape of the feature (square, triangle, ellipse,etc.).
     """
 
-def removed(feature: str) -> bool:
+def present(feature: str) -> bool:
     """
-    Asserts that a feature has been removed.
+    Asserts that a feature is present in the image.
 
     Args:
-        feature (str): The name of the removed feature.
+        feature (str): The name of the feature present.
     """
-
-def added(feature: str) -> bool:
+    
+def mirrored(feature: str, axis:Axis) -> bool:
     """
-    Asserts that a feature has been added.
+    Asserts that a feature is mirrored alonog an axis.
 
     Args:
-        feature (str): The name of the added feature.
-    """
+        feature (str): The name of the feature present.
+        axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
 
+    """
 ```
 
 All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle, and must be unambiguous unique features, for example, do not use "circle" if there are two circles in the image.
@@ -267,7 +268,7 @@ Prompt: Remove the black circle and add a red hexagon to the right of the white 
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-    return removed("black circle") and added("red hexagon") and placement("red hexagon", "white rectangle", direction="right")
+    return not present("black circle") and present("red hexagon") and placement("red hexagon", "white rectangle", direction="right")
 ```
 
 ## Example 4
@@ -309,7 +310,7 @@ Prompt: Add a nose in the shape of a square.
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-   return added("nose") and within("nose","face") and shape("nose","square")
+   return present("nose") and within("nose","face") and shape("nose","square")
 ```
 '''
 

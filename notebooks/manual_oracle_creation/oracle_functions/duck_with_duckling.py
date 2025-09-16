@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -13,7 +13,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 def test_valid_customization() -> bool:
     return (
-        added("small duck")
+        present("small duck")
         and placement("small duck", "big duck", "under")
         and placement("small duck", "big duck", "left")
     )

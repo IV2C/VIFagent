@@ -967,20 +967,13 @@ class TestExpression(unittest.TestCase):
             feedback[0],
         )
 
-    # WIP within
+    #WITHIN
 
-    @parameterized.expand(
-        [
-            ((40, 40, 60, 60), (30, 30, 70, 70)),
-            ((40, 40, 50, 50), (40, 40, 60, 60)),
-        ]
-    )
-    def test_within_valid(self, boxA, boxB):
+    def test_within_valid(self):
         original_features: list[SegmentationMask] = None
-        custom_features: list[SegmentationMask] = [
-            SegmentationMask(*boxA, None, "triangle"),
-            SegmentationMask(*boxB, None, "rectangle"),
-        ]
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_eyes_face.pickle", "rb").read()
+        )
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
             hash(self.custom_image.tobytes()): custom_features,
@@ -991,7 +984,7 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return within("triangle", "rectangle")
+            return within("left eye", "dog's face")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
@@ -1000,18 +993,11 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual([], feedback)
 
-    @parameterized.expand(
-        [
-            ((40, 40, 60, 60), (30, 30, 70, 70)),
-            ((40, 40, 50, 50), (40, 40, 60, 60)),
-        ]
-    )
-    def test_within_invalid(self, boxA, boxB):
+    def test_within_invalid(self):
         original_features: list[SegmentationMask] = None
-        custom_features: list[SegmentationMask] = [
-            SegmentationMask(*boxA, None, "triangle"),
-            SegmentationMask(*boxB, None, "rectangle"),
-        ]
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_eyes_face.pickle", "rb").read()
+        )
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
             hash(self.custom_image.tobytes()): custom_features,
@@ -1022,7 +1008,7 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return within("rectangle", "triangle")
+            return within("left eye", "right eye")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
@@ -1031,23 +1017,16 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                f"The feature rectangle should be contained in the feature triangle, but isn't."
+                f"The feature left eye should be contained in the feature right eye, but isn't."
             ],
             feedback,
         )
 
-    @parameterized.expand(
-        [
-            ((30, 30, 70, 70), (40, 40, 60, 60)),
-            ((40, 40, 60, 60), (40, 40, 50, 50)),
-        ]
-    )
-    def test_within_negated_valid(self, boxA, boxB):
+    def test_within_negated_valid(self):
         original_features: list[SegmentationMask] = None
-        custom_features: list[SegmentationMask] = [
-            SegmentationMask(*boxA, None, "triangle"),
-            SegmentationMask(*boxB, None, "rectangle"),
-        ]
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_eyes_face.pickle", "rb").read()
+        )
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
             hash(self.custom_image.tobytes()): custom_features,
@@ -1058,7 +1037,7 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return ~within("triangle", "rectangle")
+            return ~within("dog's face", "right eye")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
@@ -1067,18 +1046,12 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual([], feedback)
 
-    @parameterized.expand(
-        [
-            ((40, 40, 60, 60), (30, 30, 70, 70)),
-            ((40, 40, 50, 50), (40, 40, 60, 60)),
-        ]
-    )
-    def test_within_negated_invalid(self, boxA, boxB):
+
+    def test_within_negated_invalid(self):
         original_features: list[SegmentationMask] = None
-        custom_features: list[SegmentationMask] = [
-            SegmentationMask(*boxA, None, "triangle"),
-            SegmentationMask(*boxB, None, "rectangle"),
-        ]
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_eyes_face.pickle", "rb").read()
+        )
         feat_dict = {
             hash(self.original_image.tobytes()): original_features,
             hash(self.custom_image.tobytes()): custom_features,
@@ -1089,7 +1062,7 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return ~within("triangle", "rectangle")
+            return ~within("left eye", "dog's face")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
@@ -1098,7 +1071,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                f"The feature triangle should not be contained in the feature rectangle, but is actually within it."
+                f"The feature left eye should not be contained in the feature dog's face, but is actually within it."
             ],
             feedback,
         )

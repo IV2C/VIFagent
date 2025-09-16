@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -12,6 +12,6 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 
 def test_valid_customization() -> bool:
-    return added("monkey's tongue") and placement(
+    return present("monkey's tongue") and placement(
         "monkey's tongue", "monkey's mouth", "right"
     )

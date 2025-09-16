@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -13,8 +13,8 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 def test_valid_customization() -> bool:
     return (
-        added("Motor 1")
-        and added("Motor 2")
+        present("Motor 1")
+        and present("Motor 2")
         and within("Motor 1", "green container")
         and within("Motor 2", "green container")
     )

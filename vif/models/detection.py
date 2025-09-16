@@ -22,7 +22,7 @@ type Span = tuple[int, int]
 #     features: Annotated[list[str],Field(description="Name of each individual feature")]
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass()
 class SegmentationMask:
     # bounding box pixel coordinates (not normalized)
     y0: int  # in [0..height - 1]
@@ -31,6 +31,8 @@ class SegmentationMask:
     x1: int  # in [0..width - 1]
     mask: np.array  # [img_height, img_width] with values 0..255
     label: str
+    box_prob:float= None
+    seg_prob:float=None
 
 
 class dataclassJSONEncoder(json.JSONEncoder):

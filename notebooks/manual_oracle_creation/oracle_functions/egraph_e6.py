@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -13,7 +13,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 def test_valid_customization() -> bool:
     return (
-        added("E_6 zone")
+        present("E_6 zone")
         and within("leftmost node", "E_6 zone")
         and within("node at the end of the ab arrow", "E_6 zone")
     )

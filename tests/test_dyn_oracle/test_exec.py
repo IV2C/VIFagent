@@ -1,6 +1,6 @@
 import unittest
 
-from vif.falcon.oracle.guided_oracle.expressions import added
+from vif.falcon.oracle.guided_oracle.expressions import present
 from vif.models.detection import SegmentationMask
 from PIL import Image
 
@@ -13,7 +13,7 @@ class TestExec(unittest.TestCase):
         original_image: Image.Image = None
         custom_image:Image.Image = None
 
-        globals = {"added": added}
+        globals = {"added": present}
         toev = """
 def test_valid_customization():
     return added("triangle")
@@ -32,7 +32,7 @@ def test_valid_customization():
         original_image: Image.Image = None
         custom_image:Image.Image = None
 
-        globals = {"added": added}
+        globals = {"added": present}
         toev = """
 def test_valid_customization():
     return added("triangle")

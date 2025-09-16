@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -13,8 +13,8 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 def test_valid_customization() -> bool:
     return (
-        added("left eye's pupil")
-        and added("right eye's pupil")
+        present("left eye's pupil")
+        and present("right eye's pupil")
         and color("left eye's pupil", "brown")
         and color("right eye's pupil", "brown")
     )

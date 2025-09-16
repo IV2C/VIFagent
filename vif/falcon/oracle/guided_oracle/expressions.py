@@ -11,7 +11,7 @@ import open_clip
 
 from vif.models.detection import SegmentationMask
 from vif.utils.image_utils import (
-    compute_overlap,
+    compute_IoU,
     crop_with_box,
     image_from_color_count,
     rotate_mask,
@@ -181,7 +181,7 @@ class OracleAndExpr(OracleBynaryExpr):
         return (res1 and res2, feedbacks)
 
 
-class added(OracleCondition):
+class present(OracleCondition):
     def __init__(self, feature):
         super().__init__(feature)
 
@@ -189,10 +189,10 @@ class added(OracleCondition):
         return removed(self.feature)
 
     def evaluate(self, original_image, custom_image, segment_function):
-        condition = any(
-            m.label == self.feature
-            for m in segment_function([self.feature], custom_image)
-        )
+        segments = segment_function([self.feature], custom_image)
+        targeted_seg = get_seg_for_feature(self.feature, segments)
+
+        condition = targeted_seg != None and targeted_seg.box_prob >= 0.6
         return (
             condition,
             (
@@ -208,13 +208,14 @@ class removed(OracleCondition):
         super().__init__(feature)
 
     def __invert__(self):
-        return added(self.feature)
+        return present(self.feature)
 
     def evaluate(self, original_image, custom_image, segment_function):
-        condition = all(
-            m.label != self.feature
-            for m in segment_function([self.feature], custom_image)
-        )
+        segments = segment_function([self.feature], custom_image)
+        targeted_seg = get_seg_for_feature(self.feature, segments)
+
+        condition = targeted_seg == None or targeted_seg.box_prob < 0.6
+
         return (
             condition,
             (
@@ -245,7 +246,9 @@ class Axis(str, Enum):
     vertical = "vertical"
 
 
-def get_seg_for_feature(feature: str, features: list[SegmentationMask]):
+def get_seg_for_feature(
+    feature: str, features: list[SegmentationMask]
+) -> SegmentationMask:
     return next((seg for seg in features if seg.label == feature), None)
 
 
@@ -446,7 +449,7 @@ class angle(OracleCondition):
     def test_angle(self, args):
         degree_test, cropped1, cropped2 = args
         rotated = rotate_mask(cropped1, angle=degree_test)
-        iou = compute_overlap(rotated, cropped2)
+        iou = compute_IoU(rotated, cropped2)
         return round(iou, 2), degree_test
 
 
@@ -646,13 +649,11 @@ class within(OracleCondition):
             self.other_feature, segment_function([self.feature], custom_image)
         )
 
-        a_in_b = (
-            lambda boxA, boxB: boxA.x0 >= boxB.x0
-            and boxA.y0 >= boxB.y0
-            and boxA.x1 <= boxB.y1
-            and boxA.y1 < boxB.y1
+        score = (
+            np.logical_and(custom_box_featA.mask, custom_box_featB.mask).sum()
+            / custom_box_featA.mask.sum()
         )
-        condition = a_in_b(custom_box_featA, custom_box_featB)
+        condition = round(score, 2) > 0.9
 
         feedback = f"The feature {self.feature} should be contained in the feature {self.other_feature}, but isn't."
 
@@ -660,4 +661,43 @@ class within(OracleCondition):
             condition = not condition
             feedback = f"The feature {self.feature} should not be contained in the feature {self.other_feature}, but is actually within it."
 
+        return (condition, [feedback] if not condition else [])
+
+
+class mirrored(OracleCondition):
+    def __init__(self, feature: str, axis: Axis):
+        self.negated = False
+        self.axis = axis
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self
+
+    def evaluate(self, original_image, custom_image, segment_function):
+        ori_seg = get_seg_for_feature(
+            self.feature, segment_function([self.feature], original_image)
+        )
+        custom_seg = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
+        ori_box = (ori_seg.x0, ori_seg.x1, ori_seg.y0, ori_seg.y1)
+        custom_box = (custom_seg.x0, custom_seg.x1, custom_seg.y0, custom_seg.y1)
+        cropped1 = crop_with_box(ori_seg.mask, ori_box)
+        cropped2 = crop_with_box(custom_seg.mask, custom_box)
+
+        match self.axis:
+            case Axis.vertical:
+                mirrored_cropped1 = np.flip(cropped1, 0)
+            case Axis.horizontal:
+                mirrored_cropped1 = np.flip(cropped1, 1)
+        iou = compute_IoU(mirrored_cropped1, cropped2)
+        condition = round(iou, 2) > 5
+
+        if self.negated:
+            condition = not condition
+            feedback = f"The feature {self.feature} should not be mirrored along the {self.axis} axis."
+        else:
+            feedback = f"The feature {self.feature} should be mirrored along the {self.axis} axis."
+            
         return (condition, [feedback] if not condition else [])
