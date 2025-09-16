@@ -430,7 +430,7 @@ def rotate_mask(mask, angle):
     """Rotate mask around its center, preserving size."""
     return rotate(mask, angle=angle, resize=True, preserve_range=True).astype(mask.dtype)
 
-def compute_overlap(rotated_mask1, mask2):
+def compute_IoU(rotated_mask1, mask2):
     """Center-align smaller mask to larger one, compute overlap."""
     h1, w1 = rotated_mask1.shape
     h2, w2 = mask2.shape
@@ -455,6 +455,7 @@ def compute_overlap(rotated_mask1, mask2):
     union = np.logical_or(m1_p, m2_p)
     
     return intersection.sum() / union.sum()
+
 
 
 def apply_mask(image: Image.Image, mask: np.ndarray) -> Image.Image:

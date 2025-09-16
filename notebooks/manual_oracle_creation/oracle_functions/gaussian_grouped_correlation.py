@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -13,8 +13,8 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 def test_valid_customization() -> bool:
     return (
-        added("dashed box")
-        and added('annotation "correlation"')
+        present("dashed box")
+        and present('annotation "correlation"')
         and position('annotation "correlation"', "dashed box", "under")
         and position('annotation "correlation"', "dashed box", "right")
     )

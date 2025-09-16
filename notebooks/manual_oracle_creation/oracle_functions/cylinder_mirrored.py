@@ -1,5 +1,5 @@
 from vif.falcon.oracle.guided_oracle.expressions import (
-    added,
+    present,
     removed,
     angle,
     color,
@@ -12,6 +12,6 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 
 def test_valid_customization() -> bool:
-    return added("cylinder on the left of the vertical axis") and not added(
+    return present("cylinder on the left of the vertical axis") and not present(
         "T0 circle inside the cylinder on the left side of the vertical axis"
     )

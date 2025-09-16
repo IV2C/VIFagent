@@ -24,8 +24,7 @@ from vif.utils.image_utils import encode_image
 
 from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
-    added,
-    removed,
+    present,
     angle,
     placement,
     position,
@@ -33,6 +32,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     shape,
     size,
     within,
+    mirrored,
 )
 from google import genai
 from google.genai import types as genTypes
@@ -96,8 +96,8 @@ class OracleGuidedCodeModule(OracleModule):
         oracle_method = id_match.group(1)
         return oracle_method, response.usage
 
-    #If needs to be added back, then it should be implemented manually, with proper obervation 
-    #@retry(reraise=True, stop=stop_after_attempt(ORACLE_GENERATION_ATTEMPS))
+    # If needs to be added back, then it should be implemented manually, with proper obervation
+    # @retry(reraise=True, stop=stop_after_attempt(ORACLE_GENERATION_ATTEMPS))
     def get_oracle(
         self, instruction: str, base_image: Image.Image
     ) -> tuple[Callable[[Image.Image], OracleResponse], Any]:
@@ -116,8 +116,7 @@ class OracleGuidedCodeModule(OracleModule):
         oracle_code, res_usage = self.get_oracle_code(instruction, base_image)
 
         available_functions = {
-            "added": added,
-            "removed": removed,
+            "present": present,
             "color": color,
             "position": position,
             "size": size,
@@ -125,6 +124,7 @@ class OracleGuidedCodeModule(OracleModule):
             "placement": placement,
             "angle": angle,
             "within": within,
+            "mirrored": mirrored,
         }
 
         oracle_code = self.normalize_oracle_function(oracle_code)
@@ -142,17 +142,24 @@ class OracleGuidedCodeModule(OracleModule):
             result, feedbacks = expression.evaluate(
                 base_image, image, self.segments_from_features
             )
-            return OracleResponse(result, feedbacks, evaluation_code=oracle_code,seg_token_usage =self.segmentation_usage)
+            return OracleResponse(
+                result,
+                feedbacks,
+                evaluation_code=oracle_code,
+                seg_token_usage=self.segmentation_usage,
+            )
 
         return oracle, res_usage
 
-
     def segments_from_features(
         self, features: list[str], image: Image.Image
-    ) -> tuple[list[SegmentationMask],Any]:
+    ) -> tuple[list[SegmentationMask], Any]:
 
         already_computed_label = [
-            label for label in self.segmentation_cache[hashlib.sha1(image.tobytes()).hexdigest()]
+            label
+            for label in self.segmentation_cache[
+                hashlib.sha1(image.tobytes()).hexdigest()
+            ]
         ]
 
         to_compute_features = [
@@ -178,7 +185,9 @@ class OracleGuidedCodeModule(OracleModule):
                 self.visual_model,
             )
             segments += segs
-            self.segmentation_usage["".join(features)+str(hashlib.sha1(image.tobytes()).hexdigest())] = token_usage
+            self.segmentation_usage[
+                "".join(features) + str(hashlib.sha1(image.tobytes()).hexdigest())
+            ] = token_usage
 
         return segments
 
