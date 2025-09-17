@@ -4,6 +4,7 @@ import unittest
 from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
     angle,
+    aligned,
     color,
     mirrored,
     placement,
@@ -1087,9 +1088,7 @@ class TestExpression(unittest.TestCase):
         original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
         custom_image = Image.open("tests/resources/seg/dog_mod_vertical.png")
         feat_dict = {
-            hash(
-               original_image.tobytes()
-            ): original_features,
+            hash(original_image.tobytes()): original_features,
             hash(custom_image.tobytes()): custom_features,
         }
 
@@ -1098,7 +1097,7 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return mirrored("dog's face","vertical")
+            return mirrored("dog's face", "vertical")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
@@ -1117,9 +1116,7 @@ class TestExpression(unittest.TestCase):
         original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
         custom_image = Image.open("tests/resources/seg/dog_mod_horizontal.png")
         feat_dict = {
-            hash(
-               original_image.tobytes()
-            ): original_features,
+            hash(original_image.tobytes()): original_features,
             hash(custom_image.tobytes()): custom_features,
         }
 
@@ -1128,15 +1125,18 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return mirrored("dog's face","vertical")
+            return mirrored("dog's face", "vertical")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
             original_image, custom_image, get_features
         )
         self.assertFalse(result)
-        self.assertEqual(["The feature dog's face should be mirrored along the vertical axis."], feedback)
-        
+        self.assertEqual(
+            ["The feature dog's face should be mirrored along the vertical axis."],
+            feedback,
+        )
+
     def test_mirrored_horizontal_valid(self):
         original_features: list[SegmentationMask] = pickle.loads(
             open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
@@ -1147,9 +1147,7 @@ class TestExpression(unittest.TestCase):
         original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
         custom_image = Image.open("tests/resources/seg/dog_mod_horizontal.png")
         feat_dict = {
-            hash(
-               original_image.tobytes()
-            ): original_features,
+            hash(original_image.tobytes()): original_features,
             hash(custom_image.tobytes()): custom_features,
         }
 
@@ -1158,7 +1156,7 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return mirrored("dog's face","horizontal")
+            return mirrored("dog's face", "horizontal")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
@@ -1177,9 +1175,7 @@ class TestExpression(unittest.TestCase):
         original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
         custom_image = Image.open("tests/resources/seg/dog_mod_vertical.png")
         feat_dict = {
-            hash(
-               original_image.tobytes()
-            ): original_features,
+            hash(original_image.tobytes()): original_features,
             hash(custom_image.tobytes()): custom_features,
         }
 
@@ -1188,16 +1184,18 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return mirrored("dog's face","horizontal")
+            return mirrored("dog's face", "horizontal")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
             original_image, custom_image, get_features
         )
         self.assertFalse(result)
-        self.assertEqual(["The feature dog's face should be mirrored along the horizontal axis."], feedback)
-        
-        
+        self.assertEqual(
+            ["The feature dog's face should be mirrored along the horizontal axis."],
+            feedback,
+        )
+
     def test_mirrored_vertical_negative_invalid(self):
         original_features: list[SegmentationMask] = pickle.loads(
             open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
@@ -1208,9 +1206,7 @@ class TestExpression(unittest.TestCase):
         original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
         custom_image = Image.open("tests/resources/seg/dog_mod_vertical.png")
         feat_dict = {
-            hash(
-               original_image.tobytes()
-            ): original_features,
+            hash(original_image.tobytes()): original_features,
             hash(custom_image.tobytes()): custom_features,
         }
 
@@ -1219,16 +1215,18 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return ~mirrored("dog's face","vertical")
+            return ~mirrored("dog's face", "vertical")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
             original_image, custom_image, get_features
         )
         self.assertFalse(result)
-        self.assertEqual(["The feature dog's face should not be mirrored along the vertical axis."], feedback)
-        
-    
+        self.assertEqual(
+            ["The feature dog's face should not be mirrored along the vertical axis."],
+            feedback,
+        )
+
     def test_mirrored_horizontal_negative_invalid(self):
         original_features: list[SegmentationMask] = pickle.loads(
             open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
@@ -1239,9 +1237,7 @@ class TestExpression(unittest.TestCase):
         original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
         custom_image = Image.open("tests/resources/seg/dog_mod_horizontal.png")
         feat_dict = {
-            hash(
-               original_image.tobytes()
-            ): original_features,
+            hash(original_image.tobytes()): original_features,
             hash(custom_image.tobytes()): custom_features,
         }
 
@@ -1250,12 +1246,99 @@ class TestExpression(unittest.TestCase):
             return feat_dict[hash(image.tobytes())]
 
         def test_valid_customization() -> bool:
-            return ~mirrored("dog's face","horizontal")
+            return ~mirrored("dog's face", "horizontal")
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
             original_image, custom_image, get_features
         )
         self.assertFalse(result)
-        self.assertEqual(["The feature dog's face should not be mirrored along the horizontal axis."], feedback)
-     
+        self.assertEqual(
+            [
+                "The feature dog's face should not be mirrored along the horizontal axis."
+            ],
+            feedback,
+        )
+
+    @parameterized.expand(
+        [
+            (
+                (40, 40, 60, 60),
+                (70, 45, 80, 55),
+                "horizontal",
+            ),
+            (
+                (40, 40, 60, 60),
+                (44, 70, 54, 80),
+                "vertical",
+            ),
+        ]
+    )
+    def test_aligned_valid(self, feature_a_box, feature_b_box, axis):
+        original_features: list[SegmentationMask] = None
+
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*feature_a_box, None, "circle"),
+            SegmentationMask(*feature_b_box, None, "square"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return aligned("square", "circle", axis)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertTrue(result)
+        self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            (
+                (70, 45, 80, 55),
+                (40, 40, 60, 60),
+                "vertical",
+            ),
+            (
+                (44, 70, 54, 80),
+                (40, 40, 60, 60),
+                "horizontal",
+            ),
+        ]
+    )
+    def test_aligned_invalid(self, feature_a_box, feature_b_box, axis):
+        original_features: list[SegmentationMask] = None
+
+        custom_features: list[SegmentationMask] = [
+            SegmentationMask(*feature_a_box, None, "circle"),
+            SegmentationMask(*feature_b_box, None, "square"),
+        ]
+        feat_dict = {
+            hash(self.original_image.tobytes()): original_features,
+            hash(self.custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return aligned("circle", "square", axis)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            self.original_image, self.custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(
+            [
+                f"The feature circle should be aligned {axis}ly w.r.t. the feature square"
+            ],
+            feedback,
+        )

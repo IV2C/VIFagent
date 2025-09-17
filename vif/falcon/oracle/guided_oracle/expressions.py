@@ -686,9 +686,9 @@ class mirrored(OracleCondition):
         )
         ori_box = (ori_seg.x0, ori_seg.x1, ori_seg.y0, ori_seg.y1)
         custom_box = (custom_seg.x0, custom_seg.x1, custom_seg.y0, custom_seg.y1)
-        cropped1 = apply_mask(original_image,ori_seg.mask)
-        cropped2 = apply_mask(custom_image,custom_seg.mask)
-                
+        cropped1 = apply_mask(original_image, ori_seg.mask)
+        cropped2 = apply_mask(custom_image, custom_seg.mask)
+
         cropped1 = crop_image_with_box(cropped1, ori_box)
         cropped2 = crop_image_with_box(cropped2, custom_box)
 
@@ -697,7 +697,7 @@ class mirrored(OracleCondition):
                 mirrored_cropped1 = np.flip(cropped1, 0)
             case Axis.horizontal:
                 mirrored_cropped1 = np.flip(cropped1, 1)
-                
+
         h1, w1 = mirrored_cropped1.shape[:2]
         h2, w2 = cropped2.shape[:2]
         H = max(h1, h2)
@@ -713,5 +713,78 @@ class mirrored(OracleCondition):
             feedback = f"The feature {self.feature} should not be mirrored along the {self.axis} axis."
         else:
             feedback = f"The feature {self.feature} should be mirrored along the {self.axis} axis."
-            
+
         return (condition, [feedback] if not condition else [])
+
+
+class aligned(OracleCondition):
+    def __init__(self, feature: str, other_feature: str,axis:Axis):
+        self.other_feature = other_feature
+        self.axis = axis
+        self.negated = False
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self
+
+    def evaluate(self, original_image, custom_image, segment_function):
+        custom_box_featA = get_seg_for_feature(
+            self.feature, segment_function([self.feature], custom_image)
+        )
+        custom_box_featB = get_seg_for_feature(
+            self.other_feature, segment_function([self.feature], custom_image)
+        )
+        center_custom_boxA = get_box_center(custom_box_featA)
+        center_custom_boxB = get_box_center(custom_box_featB)
+
+        accepted_x_delta = 0.05 * max(
+            (custom_box_featA.x1 - custom_box_featA.x0),
+            (custom_box_featB.x1 - custom_box_featB.x0),
+        )
+        accepted_y_delta = 0.05 * max(
+            (custom_box_featA.y1 - custom_box_featA.y0),
+            (custom_box_featB.y1 - custom_box_featB.y0),
+        )
+
+        condition_x = (
+            center_custom_boxB[0] - accepted_x_delta
+            <= center_custom_boxA[0]
+            <= center_custom_boxB[0] + accepted_x_delta
+        )
+        condition_y = (
+            center_custom_boxB[1] - accepted_y_delta
+            <= center_custom_boxA[1]
+            <= center_custom_boxB[1] + accepted_y_delta
+        )
+        
+        match self.axis:
+            case Axis.horizontal:
+                condition = condition_x        
+            case Axis.vertical:
+                condition = condition_y        
+        feedback = f"The feature {self.feature} should be aligned {self.axis}ly w.r.t. the feature {self.other_feature}"
+        
+        if self.negated:
+            condition = not condition
+            feedback = f"The feature {self.feature} should not be aligned {self.axis}ly w.r.t. the feature {self.other_feature}"
+            
+        
+
+        return (condition, [feedback] if not condition else [])
+
+    def horizontal_oracle(
+        self, d1: tuple[int, int], d2: tuple[int, int]
+    ) -> tuple[bool, str]:
+        expected_distance = self.ratio * d1[0]
+        condition = (
+            expected_distance - 0.1 * expected_distance
+            <= d2[0]
+            <= expected_distance + 0.1 * expected_distance
+        )
+        if self.negated:
+            feedback = f"The horizontal distance between {self.feature} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
+            return (not condition, feedback)
+
+        feedback = f"The horizontal distance between {self.feature} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
+        return (condition, feedback)
