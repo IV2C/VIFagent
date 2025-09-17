@@ -11,9 +11,12 @@ import open_clip
 
 from vif.models.detection import SegmentationMask
 from vif.utils.image_utils import (
-    compute_IoU,
-    crop_with_box,
+    compute_mask_IoU,
+    crop_image_with_box,
+    crop_mask_with_box,
     image_from_color_count,
+    nmse_np,
+    pad_center,
     rotate_mask,
     apply_mask,
 )
@@ -417,8 +420,8 @@ class angle(OracleCondition):
         )
         ori_box = (ori_seg.x0, ori_seg.x1, ori_seg.y0, ori_seg.y1)
         custom_box = (custom_seg.x0, custom_seg.x1, custom_seg.y0, custom_seg.y1)
-        cropped1 = crop_with_box(ori_seg.mask, ori_box)
-        cropped2 = crop_with_box(custom_seg.mask, custom_box)
+        cropped1 = crop_mask_with_box(ori_seg.mask, ori_box)
+        cropped2 = crop_mask_with_box(custom_seg.mask, custom_box)
 
         degrees = list(range(-175, 180, 5))
         args_list = [(deg, cropped1, cropped2) for deg in degrees]
@@ -449,7 +452,7 @@ class angle(OracleCondition):
     def test_angle(self, args):
         degree_test, cropped1, cropped2 = args
         rotated = rotate_mask(cropped1, angle=degree_test)
-        iou = compute_IoU(rotated, cropped2)
+        iou = compute_mask_IoU(rotated, cropped2)
         return round(iou, 2), degree_test
 
 
@@ -683,16 +686,27 @@ class mirrored(OracleCondition):
         )
         ori_box = (ori_seg.x0, ori_seg.x1, ori_seg.y0, ori_seg.y1)
         custom_box = (custom_seg.x0, custom_seg.x1, custom_seg.y0, custom_seg.y1)
-        cropped1 = crop_with_box(ori_seg.mask, ori_box)
-        cropped2 = crop_with_box(custom_seg.mask, custom_box)
+        cropped1 = apply_mask(original_image,ori_seg.mask)
+        cropped2 = apply_mask(custom_image,custom_seg.mask)
+                
+        cropped1 = crop_image_with_box(cropped1, ori_box)
+        cropped2 = crop_image_with_box(cropped2, custom_box)
 
         match self.axis:
             case Axis.vertical:
                 mirrored_cropped1 = np.flip(cropped1, 0)
             case Axis.horizontal:
                 mirrored_cropped1 = np.flip(cropped1, 1)
-        iou = compute_IoU(mirrored_cropped1, cropped2)
-        condition = round(iou, 2) > 5
+                
+        h1, w1 = mirrored_cropped1.shape[:2]
+        h2, w2 = cropped2.shape[:2]
+        H = max(h1, h2)
+        W = max(w1, w2)
+
+        mirrored_cropped1 = pad_center(mirrored_cropped1, H, W)
+        cropped2 = pad_center(cropped2, H, W)
+        norm_mse = nmse_np(mirrored_cropped1, cropped2)
+        condition = round(norm_mse, 2) < 0.1
 
         if self.negated:
             condition = not condition

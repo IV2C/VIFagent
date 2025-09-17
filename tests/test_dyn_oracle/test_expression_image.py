@@ -5,6 +5,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
     angle,
     color,
+    mirrored,
     placement,
     position,
     size,
@@ -559,7 +560,6 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result, feedback)
         self.assertEqual([], feedback)
 
-
     @parameterized.expand(["white", "green", "yellowish gray"])
     def test_color_invalid(self, color_expected):
         import pickle
@@ -967,7 +967,7 @@ class TestExpression(unittest.TestCase):
             feedback[0],
         )
 
-    #WITHIN
+    # WITHIN
 
     def test_within_valid(self):
         original_features: list[SegmentationMask] = None
@@ -1046,7 +1046,6 @@ class TestExpression(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual([], feedback)
 
-
     def test_within_negated_invalid(self):
         original_features: list[SegmentationMask] = None
         custom_features: list[SegmentationMask] = pickle.loads(
@@ -1075,3 +1074,188 @@ class TestExpression(unittest.TestCase):
             ],
             feedback,
         )
+
+    # Mirrored
+
+    def test_mirrored_vertical_valid(self):
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_vertical.pickle", "rb").read()
+        )
+        original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
+        custom_image = Image.open("tests/resources/seg/dog_mod_vertical.png")
+        feat_dict = {
+            hash(
+               original_image.tobytes()
+            ): original_features,
+            hash(custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return mirrored("dog's face","vertical")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image, custom_image, get_features
+        )
+        self.assertTrue(result)
+        self.assertEqual([], feedback)
+
+    def test_mirrored_vertical_invalid(self):
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_horizontal.pickle", "rb").read()
+        )
+        original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
+        custom_image = Image.open("tests/resources/seg/dog_mod_horizontal.png")
+        feat_dict = {
+            hash(
+               original_image.tobytes()
+            ): original_features,
+            hash(custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return mirrored("dog's face","vertical")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image, custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(["The feature dog's face should be mirrored along the vertical axis."], feedback)
+        
+    def test_mirrored_horizontal_valid(self):
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_horizontal.pickle", "rb").read()
+        )
+        original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
+        custom_image = Image.open("tests/resources/seg/dog_mod_horizontal.png")
+        feat_dict = {
+            hash(
+               original_image.tobytes()
+            ): original_features,
+            hash(custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return mirrored("dog's face","horizontal")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image, custom_image, get_features
+        )
+        self.assertTrue(result)
+        self.assertEqual([], feedback)
+
+    def test_mirrored_horizontal_invalid(self):
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_vertical.pickle", "rb").read()
+        )
+        original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
+        custom_image = Image.open("tests/resources/seg/dog_mod_vertical.png")
+        feat_dict = {
+            hash(
+               original_image.tobytes()
+            ): original_features,
+            hash(custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return mirrored("dog's face","horizontal")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image, custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(["The feature dog's face should be mirrored along the horizontal axis."], feedback)
+        
+        
+    def test_mirrored_vertical_negative_invalid(self):
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_vertical.pickle", "rb").read()
+        )
+        original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
+        custom_image = Image.open("tests/resources/seg/dog_mod_vertical.png")
+        feat_dict = {
+            hash(
+               original_image.tobytes()
+            ): original_features,
+            hash(custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return ~mirrored("dog's face","vertical")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image, custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(["The feature dog's face should not be mirrored along the vertical axis."], feedback)
+        
+    
+    def test_mirrored_horizontal_negative_invalid(self):
+        original_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_normal.pickle", "rb").read()
+        )
+        custom_features: list[SegmentationMask] = pickle.loads(
+            open("tests/resources/seg/dog_mod_horizontal.pickle", "rb").read()
+        )
+        original_image = Image.open("tests/resources/seg/dog_mod_normal.png")
+        custom_image = Image.open("tests/resources/seg/dog_mod_horizontal.png")
+        feat_dict = {
+            hash(
+               original_image.tobytes()
+            ): original_features,
+            hash(custom_image.tobytes()): custom_features,
+        }
+
+        def get_features(features: list[str], image: Image.Image):
+
+            return feat_dict[hash(image.tobytes())]
+
+        def test_valid_customization() -> bool:
+            return ~mirrored("dog's face","horizontal")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image, custom_image, get_features
+        )
+        self.assertFalse(result)
+        self.assertEqual(["The feature dog's face should not be mirrored along the horizontal axis."], feedback)
+     
