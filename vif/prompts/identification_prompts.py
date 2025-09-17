@@ -4,7 +4,8 @@ DETECTION_PROMPT: str = """Detect, if present, with no more than 20 items. Outpu
 
 SEGMENTATION_PROMPT:str ="""
 Give the segmentation masks for the {labels}. Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
-Only identify if the exact descriptive label is present, if not, do not output a mask for the label. Each label should be present once at most. Always generate the full mask, not just <start_of_mask>."""
+Each label should be present once at most. Always generate the full mask, not just <start_of_mask>.
+Important Note: The exact same labels as the ones asked should be used, do not modify them."""
 
 PINPOINT_PROMPT = """Given the following list of features:
 `{features}`

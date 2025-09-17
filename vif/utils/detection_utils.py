@@ -17,7 +17,7 @@ from vif.models.detection import SegmentationMask
 from vif.models.exceptions import InvalidMasksError, JsonFormatError, ParsingError
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
 from vif.utils.caching import CachedRequest, instantiate_cache
-from vif.utils.image_utils import adjust_bbox, encode_image, mse
+from vif.utils.image_utils import adjust_bbox, encode_image, nmse
 
 
 def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
@@ -336,7 +336,7 @@ def dsim_box(
             mutant_image_mask = image.crop(box["box_2d"])
             cur_mse_map.append(
                 (
-                    mse(base_image_mask, mutant_image_mask)
+                    nmse(base_image_mask, mutant_image_mask)
                     / math.prod(base_image_mask.size),
                     i,
                 )  # normalized MSE divided by the size of the image, to favoritize small specific features

@@ -35,7 +35,7 @@ def encode_image(image: Image.Image):
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
-def se(image1: Image.Image, image2: Image.Image):
+def nsse(image1: Image.Image, image2: Image.Image):
     """Compute Mean Squared Error between two PIL images."""
     arr1 = np.array(image1, dtype=np.float32)
     arr2 = np.array(image2, dtype=np.float32)
@@ -54,8 +54,27 @@ def se(image1: Image.Image, image2: Image.Image):
     return np.sum((arr1 - arr2) ** 2)
 
 
-def mse(image1: Image.Image, image2: Image.Image):
-    return se(image1, image2) / (math.prod(image1.size))
+def nmse(image1: Image.Image, image2: Image.Image):
+    return nsse(image1, image2) / (math.prod(image1.size))
+
+
+def nsse_np(arr1: np.ndarray, arr2: np.ndarray) -> float:
+    """Compute Normalized Sum of Squared Errors between two np arrays."""
+    if arr1.shape != arr2.shape:
+        raise ValueError("Arrays must have the same shape")
+
+    max_val = max(arr1.max(), arr2.max())
+    if max_val == 0:
+        return 0.0
+
+    arr1 = arr1.astype(float) / max_val
+    arr2 = arr2.astype(float) / max_val
+    return np.sum((arr1 - arr2) ** 2)
+
+
+def nmse_np(arr1: np.ndarray, arr2: np.ndarray) -> float:
+    """Compute Normalized Mean Squared Error between two np arrays."""
+    return nsse_np(arr1, arr2) / np.prod(arr1.shape)
 
 
 def adjust_bbox(box, image: Image.Image):
@@ -70,31 +89,31 @@ def adjust_bbox(box, image: Image.Image):
     box["box_2d"] = new_box
     return box
 
+
 import statistics
-def image_from_color_count(color_count:list[tuple[tuple, int]]) ->Image.Image:
+
+
+def image_from_color_count(color_count: list[tuple[tuple, int]]) -> Image.Image:
     total_count = sum([c[1] for c in color_count])
     width = 1000
-    
-    ratios = [(c[1]/total_count) for c in color_count]
-    avg_ratio = statistics.quantiles(ratios,n=5)[0]
-    
-    
+
+    ratios = [(c[1] / total_count) for c in color_count]
+    avg_ratio = statistics.quantiles(ratios, n=5)[0]
+
     final_image = []
-    
-    for c,ratio in zip(color_count,ratios):
-        if(ratio<=avg_ratio):
+
+    for c, ratio in zip(color_count, ratios):
+        if ratio <= avg_ratio:
             continue
-        lines_added = int(ratio*width)
+        lines_added = int(ratio * width)
         for _ in range(lines_added):
             final_image.append([c[0] for _ in range(width)])
     final_image = Image.fromarray(np.array(final_image))
     return final_image
 
 
-
 import cv2 as cv
 import numpy.typing as npt
-
 
 
 ### Template matching methods(useless at the end of the day)
@@ -261,7 +280,6 @@ def get_feature_matches(
     return good_matches, kp1, kp2, image_gray, modified_cv
 
 
-
 def get_repr_cluster(matches: list, kp1: list, kp2: list) -> list:
     """Takes as input a list of feature matches, returns a cluster containing only the features that remain shape between eachother in the train image
 
@@ -274,12 +292,11 @@ def get_repr_cluster(matches: list, kp1: list, kp2: list) -> list:
         list: filtered match list with the cluster only
     """
 
-
     coords = lambda m: (
-        round(kp1[m.queryIdx].pt[0],0),
-        round(kp1[m.queryIdx].pt[1],0),
-        round(kp2[m.trainIdx].pt[0],0),
-        round(kp2[m.trainIdx].pt[1],0),
+        round(kp1[m.queryIdx].pt[0], 0),
+        round(kp1[m.queryIdx].pt[1], 0),
+        round(kp2[m.trainIdx].pt[0], 0),
+        round(kp2[m.trainIdx].pt[1], 0),
     )
 
     clusters = defaultdict(set)
@@ -296,7 +313,7 @@ def get_repr_cluster(matches: list, kp1: list, kp2: list) -> list:
                 Rx = abs(x1 - x2) / abs(x1p - x2p)
                 Ry = abs(y1 - y2) / abs(y1p - y2p)
                 key = tuple(round(x, 5) for x in (Rx, Ry))
-                if any(k==0.0 for k in key):
+                if any(k == 0.0 for k in key):
                     continue
                 clusters[key].add(m1)  # redundant
                 clusters[key].add(m2)
@@ -421,16 +438,53 @@ def box_size_increase(
 import numpy as np
 from skimage.transform import rotate
 
-def crop_with_box(mask, box):
+
+def crop_mask_with_box(mask, box):
     """Crop mask using box = (x0,x1,y0,y1)."""
-    x0,x1,y0,y1 = box
+    x0, x1, y0, y1 = box
     return mask[y0:y1, x0:x1]
+
 
 def rotate_mask(mask, angle):
     """Rotate mask around its center, preserving size."""
-    return rotate(mask, angle=angle, resize=True, preserve_range=True).astype(mask.dtype)
+    return rotate(mask, angle=angle, resize=True, preserve_range=True).astype(
+        mask.dtype
+    )
 
-def compute_IoU(rotated_mask1, mask2):
+
+def pad_center(image, H, W):
+    h, w = image.shape[:2]
+    top = (H - h) // 2
+    bottom = H - h - top
+    left = (W - w) // 2
+    right = W - w - left
+    
+    if len(image.shape)>2:
+        return np.pad(image, ((top, bottom), (left, right),(0,0)))
+    
+    return np.pad(image, ((top, bottom), (left, right)))
+
+
+def compute_mask_IoU(rotated_mask1, mask2):
+    """Center-align smaller mask to larger one, compute overlap."""
+    h1, w1 = rotated_mask1.shape
+    h2, w2 = mask2.shape
+
+    # Compute canvas size
+    H = max(h1, h2)
+    W = max(w1, w2)
+
+    m1_p = pad_center(rotated_mask1, H, W)
+    m2_p = pad_center(mask2, H, W)
+
+    # Binary masks assumed: overlap = logical AND
+    intersection = np.logical_and(m1_p, m2_p)
+    union = np.logical_or(m1_p, m2_p)
+
+    return intersection.sum() / union.sum()
+
+
+def compute_image_mse(rotated_mask1, mask2):
     """Center-align smaller mask to larger one, compute overlap."""
     h1, w1 = rotated_mask1.shape
     h2, w2 = mask2.shape
@@ -449,18 +503,13 @@ def compute_IoU(rotated_mask1, mask2):
 
     m1_p = pad_center(rotated_mask1, H, W)
     m2_p = pad_center(mask2, H, W)
-    
-    # Binary masks assumed: overlap = logical AND
-    intersection = np.logical_and(m1_p, m2_p)
-    union = np.logical_or(m1_p, m2_p)
-    
-    return intersection.sum() / union.sum()
 
+    return nmse(m1_p, m2_p)
 
 
 def apply_mask(image: Image.Image, mask: np.ndarray) -> Image.Image:
     """
-    Return a new image where only masked pixels are kept, 
+    Return a new image where only masked pixels are kept,
     others are transparent.
 
     :param image: PIL Image (RGB or RGBA)
@@ -478,12 +527,19 @@ def apply_mask(image: Image.Image, mask: np.ndarray) -> Image.Image:
     return Image.fromarray(img_arr, "RGBA")
 
 
+def crop_image_with_box(image: Image.Image, box):
+    """Crop image using box = (x0,x1,y0,y1), returns a numpy array of the image"""
+    image = np.array(image)
+    x0, x1, y0, y1 = box
+    return image[y0:y1, x0:x1]
+
 
 from PIL import ImageColor, ImageFont, ImageDraw
 import numpy as np
 
 from vif.models.detection import SegmentationMask
-        
+
+
 def plot_segmentation_masks(img: Image, segmentation_masks: list[SegmentationMask]):
     """
     Plots bounding boxes on an image with markers for each a name, using PIL, normalized coordinates, and different colors.
@@ -542,6 +598,7 @@ def plot_segmentation_masks(img: Image, segmentation_masks: list[SegmentationMas
         if mask.label != "":
             draw.text((mask.x0 + 8, mask.y0 - 20), mask.label, fill=color, font=font)
     return img
+
 
 def overlay_mask_on_img(
     img: Image, mask: np.ndarray, color: str, alpha: float = 0.7
