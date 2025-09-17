@@ -151,7 +151,7 @@ def placement(feature: str, other_feature: str, direction: Direction) -> bool:
     Args:
         feature (str): The name of the first feature.
         other_feature (str): The name of the reference feature.
-        direction (Direction): One of "left", "right", "over", or "under".
+        direction (Direction): One of "left", "right", "over", or "under".(e.g. "feature is on the left/right of the other_feature" or "feature is over/under the other_feature")
     """
 
 
@@ -161,15 +161,15 @@ def position(feature: str, other_feature: str, ratio: float, axis: Axis) -> bool
 
     Args:
         feature (str): The name of the moved feature.
-        ratio (float): A positive ratio indicating the relative movement distance.
-        axis (Axis): Either "horizontal" or "vertical".
         other_feature (str): The reference feature used to compute the movement.
+        ratio (float): A positive ratio indicating the relative movement distance, when compared to the original distance between the two features.
+        axis (Axis): Either "horizontal" or "vertical".
     """
 
 
 def color(feature: str, expected_color: str) -> bool:
     """
-    Asserts that a feature has a given color. A precise color must be provided, i.e. the closest one possible to the expected color.
+    Asserts that a feature has a given color. A precise arbitrary open string color string must be provided, i.e. the closest one possible to the expected color.
 
     Args:
         feature (str): The name of the feature.
@@ -188,14 +188,14 @@ def angle(feature: str, degree: int) -> bool:
 
 def size(feature: str, ratio: Tuple[float, float]) -> bool:
     """
-    Asserts that a feature has been resized by a certain ratio (x,y).
+    Asserts that a feature has been resized by given scaling factors along x and y.
 
     Args:
-        feature (str): The name of resized feature.
-        ratio (Tuple[float, float]): a tuple containing the ratios by which the feature has been resized on x and y. x and y can be any value >0.
+        feature (str): The name of the resized feature.
+        ratio (Tuple[float, float]): Scaling factors applied to the feature’s width (x) and height (y), relative to its own original dimensions. 
     """
     
-def wthin(feature: str, other_feature: str) -> bool:
+def within(feature: str, other_feature: str) -> bool:
     """
     Asserts that a feature is contained in another feature.
 
@@ -223,18 +223,29 @@ def present(feature: str) -> bool:
     
 def mirrored(feature: str, axis:Axis) -> bool:
     """
-    Asserts that a feature is mirrored alonog an axis.
+    Asserts that a feature is mirrored along an axis.
 
     Args:
-        feature (str): The name of the feature present.
+        feature (str): The name of the feature.
         axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
 
+    """
+
+def aligned(feature: str, other_feature: str, axis:Axis) -> bool:
+    """
+    Asserts that a feature is at the center of another feature.
+
+    Args:
+        feature (str): The name of the first feature.
+        other_feature (str): The name of the second feature.
+        axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
     """
 ```
 
 All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle, and must be unambiguous unique features, for example, do not use "circle" if there are two circles in the image.
 You can give very detailed description of the feature you are searching for to make them unambiguous. When using these parameters, ensure the features are identifiable both in the initial and modified image.
 For example, if the instruction describes a color change, do not use the color as an attribute of the feature because it will not be the same in the modified image.
+You can use boolean operators such as "not", "and", and "or" for each type of condition, as well as intermediary variables. However you cannot use keywords like any() or all() 
 The examples below show examples with overly simple features, in the real case you will have to provide highly detailed and higher level features. 
 Here are some very simple examples in which the image is only described, but in the real setup you will be provided real images:
 
@@ -278,7 +289,7 @@ Prompt: Swap the positions of the green star and the purple square, and change t
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-    swapped = placement("square", "green_star", direction="left")
+    swapped = placement("square", "green star", direction="left")
     color_changed = color("square", "blue") or color("square", "light red")
     return swapped and color_changed
 ```

@@ -1,3 +1,3 @@
-from vif.falcon.oracle.guided_oracle.expressions import (present,removed,angle,color,placement,position,size,shape,within)
+from vif.falcon.oracle.guided_oracle.expressions import (aligned, present,removed,angle,color,placement,position,size,shape,within)
 def test_valid_customization() -> bool:
-  return size("arrow labelled w",(2,1))
+  return aligned("right side of the copper box on top","right side of the green box","horizontal")

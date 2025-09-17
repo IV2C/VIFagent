@@ -24,6 +24,7 @@ from vif.utils.image_utils import encode_image
 
 from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
+    aligned,
     present,
     angle,
     placement,
@@ -125,6 +126,7 @@ class OracleGuidedCodeModule(OracleModule):
             "angle": angle,
             "within": within,
             "mirrored": mirrored,
+            "centered": aligned,
         }
 
         oracle_code = self.normalize_oracle_function(oracle_code)
