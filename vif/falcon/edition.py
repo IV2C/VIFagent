@@ -119,7 +119,6 @@ class OracleEditionModule(EditionModule, LLMmodule):
             model=self.model,
             temperature=self.temperature,
             messages=messages,
-            tools=[modify_code_tool],
         )
 
         for step in range(self.max_iterations):
@@ -229,7 +228,6 @@ class OracleEditionModule(EditionModule, LLMmodule):
                 model=self.model,
                 temperature=self.temperature,
                 messages=messages,
-                tools=[modify_code_tool],
             )
         # stop on sufficient edit
         return edited_code
