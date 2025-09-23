@@ -117,16 +117,16 @@ class OracleGuidedCodeModule(OracleModule):
         oracle_code, res_usage = self.get_oracle_code(instruction, base_image)
 
         available_functions = {
-            "present": present,
-            "color": color,
-            "position": position,
-            "size": size,
-            "shape": shape,
             "placement": placement,
+            "position": position,
+            "color": color,
             "angle": angle,
+            "size": size,
             "within": within,
+            "shape": shape,
+            "present": present,
             "mirrored": mirrored,
-            "centered": aligned,
+            "aligned": aligned,
         }
 
         oracle_code = self.normalize_oracle_function(oracle_code)
