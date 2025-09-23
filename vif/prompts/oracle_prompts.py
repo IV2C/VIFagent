@@ -237,7 +237,7 @@ def mirrored(feature: str, axis:Axis) -> bool:
 
 def aligned(feature: str, other_feature: str, axis:Axis) -> bool:
     """
-    Asserts that a feature is at the center of another feature.
+    Asserts that a feature is aligned with another another feature vertically or horizontally.
 
     Args:
         feature (str): The name of the first feature.
