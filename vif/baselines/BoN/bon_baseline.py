@@ -1,21 +1,10 @@
 from dataclasses import dataclass
+from typing import Any
 from openai import Client
 
 
-@dataclass
-class CustomizationOutput:
-    result_codes: list[str]
-    token_usage: dict
-    feedbacks: list[str]
-    # config
-    baseline_name: str
-    edit_temperature: float
-    edit_model_name: str
-    feedback_temperature: float
-    feedback_model_name: str
-
-
-class TexBaseline:
+#TODO
+class TexBonBaseline:
     def __init__(
         self,
         *,
@@ -37,5 +26,5 @@ class TexBaseline:
         self.feedback_temperature = feedback_temperature
         self.max_iteration = max_iterations
 
-    def customize(code: str, instruction: str) -> CustomizationOutput:
+    def customize(code: str, instruction: str) -> Any:
         pass
