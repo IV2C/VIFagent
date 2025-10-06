@@ -142,7 +142,10 @@ class OracleGuidedCodeModule(OracleModule):
         ) -> OracleResponse:
             self.segmentation_usage.clear()
             result, feedbacks = expression.evaluate(
-                base_image, image, self.segments_from_features
+                original_image=base_image,
+                custom_image=image,
+                segment_function=self.segments_from_features,
+                #TODO Add LLM client, model and temp for property expression
             )
             return OracleResponse(
                 result,

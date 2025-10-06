@@ -8,6 +8,37 @@ from PIL import Image
 import numpy as np
 
 
+def concat_images_horizontally(ims: list[Image.Image]):
+    widths, heights = zip(*(i.size for i in ims))
+
+    total_width = sum(widths)
+    max_height = max(heights)
+    max_width = max(widths)
+
+    sep_im = Image.fromarray(
+        np.ones(
+                (
+                    max_height,
+                    math.floor((max((max_width * 0.03), 5)))
+                )
+            )
+        )
+    sep_im = sep_im.convert("RGBA")
+
+    new_im = Image.new(
+        "RGB", (total_width + (sep_im.size[0] * (len(ims) - 1)), max_height)
+    )
+
+    x_offset = 0
+    for im in ims:
+        new_im.paste(im, (x_offset, 0))
+        x_offset += im.size[0]
+        new_im.paste(sep_im, (x_offset, 0))
+        x_offset += sep_im.size[0]
+
+    return new_im
+
+
 def write_base64_to_image(base64_str: str, output_path: str) -> None:
     if base64_str.startswith("data:image"):
         base64_str = base64_str.split(",")[1]
@@ -458,10 +489,10 @@ def pad_center(image, H, W):
     bottom = H - h - top
     left = (W - w) // 2
     right = W - w - left
-    
-    if len(image.shape)>2:
-        return np.pad(image, ((top, bottom), (left, right),(0,0)))
-    
+
+    if len(image.shape) > 2:
+        return np.pad(image, ((top, bottom), (left, right), (0, 0)))
+
     return np.pad(image, ((top, bottom), (left, right)))
 
 
