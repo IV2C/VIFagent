@@ -7,6 +7,8 @@ from PIL import Image
 
 
 class TestExpression(unittest.TestCase):
+    """Note: Does not test expressions which are property(), hence no need for llm instantiation
+    """
 
     def __init__(self, methodName="runTest"):
         self.original_image: Image.Image = Image.new("1", (2, 2))
@@ -28,7 +30,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -47,7 +49,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -67,7 +69,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -96,7 +98,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -123,7 +125,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -153,7 +155,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -185,7 +187,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -218,7 +220,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -246,7 +248,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -277,7 +279,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
@@ -305,7 +307,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertFalse(result)
         self.assertEqual(
@@ -338,7 +340,7 @@ class TestExpression(unittest.TestCase):
 
         expression: OracleExpression = test_valid_customization()
         result, feedback = expression.evaluate(
-            self.original_image, self.custom_image, get_features
+            original_image=self.original_image, custom_image=self.custom_image, segment_function=get_features
         )
         self.assertFalse(result)
         self.assertEqual(
