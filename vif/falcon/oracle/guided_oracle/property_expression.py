@@ -11,10 +11,11 @@ from vif.prompts.property_check_prompt import PROPERTY_PROMPT
 from vif.utils.image_utils import concat_images_horizontally, encode_image
 
 
-class property(OracleExpression):
+class visual_property(OracleExpression):
 
     def __init__(self, property):
         self.property = property
+        self.negated = False
 
     def __invert__(self):
         self.negated = True
@@ -59,9 +60,14 @@ class property(OracleExpression):
         id_match = re.search(pattern, cnt)
 
         if not id_match:
-            return None
+            return None#TODO handle errors
         
-        bool_response = bool(id_match.group(1))
-        #TODO self negated and feedback toussatoussa
+        condition = id_match.group(1)=="True"
         
-        return bool_response
+        if self.negated:
+            condition = not condition
+            feedback = f"The property \"{self.property}\" is applied, but shouldn't be."
+        else:
+            feedback = f"The property \"{self.property}\" is not applied, but should be."
+        return (condition, [feedback] if not condition else [])
+            

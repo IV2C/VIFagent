@@ -330,6 +330,32 @@ def test_valid_customization() -> bool:
 '''
 
 
+ORACLE_PROPERTY_USAGE_PROMPT = '''
+You also have access to a visual property checker helper function, to use when the other ones are not sufficient:
+```
+def visual_property(property:str) -> bool:
+    """
+    Asserts that a property is applied on the second image.
+
+    Args:
+        property:str
+    """
+```
+
+This function can be used the same way as the other helper functions, for example:
+## Example 8
+Image (description): A drawing of a person.
+Prompt: Make the person look scared.
+
+Expected output:
+```python
+def test_valid_customization() -> bool:
+   return visual_property("The person is now looking scared")
+```
+'''
+
+
+
 ORACLE_CODE_PROMPT: str = """
 - Prompt: {instruction}
 """
