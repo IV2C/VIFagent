@@ -1,4 +1,5 @@
 #################### Oracle condition "function" which actually are classes, for easier feedback creation ###############
+from openai import Client
 import torch
 from abc import abstractmethod
 from collections import Counter, defaultdict
@@ -148,7 +149,7 @@ class OracleBynaryExpr(OracleExpression):
         self.exprA = exprA
         self.exprB = exprB
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
+    def evaluate(self, *args, **kwargs):
         pass
 
 
@@ -157,14 +158,10 @@ class OracleOrExpr(OracleBynaryExpr):
     def __invert__(self):
         return ~self.exprA & ~self.exprB
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        res1, feedback1 = self.exprA.evaluate(
-            original_image, custom_image, segment_function
-        )
+    def evaluate(self, *args, **kwargs):
+        res1, feedback1 = self.exprA.evaluate(**kwargs)
 
-        res2, feedback2 = self.exprB.evaluate(
-            original_image, custom_image, segment_function
-        )
+        res2, feedback2 = self.exprB.evaluate(**kwargs)
 
         condition = res1 or res2
         if not condition:
@@ -183,14 +180,10 @@ class OracleAndExpr(OracleBynaryExpr):
     def __invert__(self):
         return ~self.exprA | ~self.exprB
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        res1, feedback1 = self.exprA.evaluate(
-            original_image, custom_image, segment_function
-        )
+    def evaluate(self, *args, **kwargs):
+        res1, feedback1 = self.exprA.evaluate(**kwargs)
 
-        res2, feedback2 = self.exprB.evaluate(
-            original_image, custom_image, segment_function
-        )
+        res2, feedback2 = self.exprB.evaluate(**kwargs)
         feedbacks = feedback1 + feedback2
 
         return (res1 and res2, feedbacks)

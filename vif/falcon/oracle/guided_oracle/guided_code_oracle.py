@@ -1,15 +1,10 @@
-from abc import abstractmethod
 from collections import defaultdict
 from collections.abc import Callable
-import json
-import os
 import re
 from typing import Any
 from loguru import logger
 from openai import Client
-from tenacity import retry, stop_after_attempt
 
-from vif.env import ORACLE_GENERATION_ATTEMPS, SEGMENTATION_ATTEMPTS
 from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
 import hashlib
@@ -18,10 +13,12 @@ from vif.models.detection import SegmentationMask
 from vif.prompts.oracle_prompts import (
     ORACLE_CODE_PROMPT,
     ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
+    ORACLE_PROPERTY_USAGE_PROMPT,
 )
 from vif.utils.detection_utils import get_segmentation_masks
 from vif.utils.image_utils import encode_image
 
+from vif.falcon.oracle.guided_oracle.property_expression import visual_property
 from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
     aligned,
@@ -36,7 +33,6 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     mirrored,
 )
 from google import genai
-from google.genai import types as genTypes
 
 
 class OracleGuidedCodeModule(OracleModule):
@@ -48,11 +44,18 @@ class OracleGuidedCodeModule(OracleModule):
         temperature=0.3,
         visual_client: genai.Client,
         visual_model: str,
+        property_model,
+        property_client: Client,
+        property_model_temperature=0.3,
     ):
         self.visual_client = visual_client
         self.visual_model = visual_model
         self.segmentation_cache: dict[int, list[SegmentationMask]] = defaultdict(list)
         self.segmentation_usage: dict[str, str] = defaultdict(list)
+        self.property_client = property_client
+        self.property_model = property_model
+        self.property_model_temperature = property_model_temperature
+
         super().__init__(
             client=client,
             temperature=temperature,
@@ -69,7 +72,12 @@ class OracleGuidedCodeModule(OracleModule):
             model=self.model,
             temperature=self.temperature,
             messages=[
-                {"role": "system", "content": ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT},
+                {
+                    "role": "system",
+                    "content": ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT
+                    + "\n"
+                    + ORACLE_PROPERTY_USAGE_PROMPT,
+                },
                 {
                     "role": "user",
                     "content": [
@@ -127,6 +135,7 @@ class OracleGuidedCodeModule(OracleModule):
             "present": present,
             "mirrored": mirrored,
             "aligned": aligned,
+            "visual_property": visual_property,
         }
 
         oracle_code = self.normalize_oracle_function(oracle_code)
@@ -145,7 +154,9 @@ class OracleGuidedCodeModule(OracleModule):
                 original_image=base_image,
                 custom_image=image,
                 segment_function=self.segments_from_features,
-                #TODO Add LLM client, model and temp for property expression
+                client=self.property_client,
+                model=self.property_model,
+                temperature=self.property_model_temperature,
             )
             return OracleResponse(
                 result,

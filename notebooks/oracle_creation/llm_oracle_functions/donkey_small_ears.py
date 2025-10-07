@@ -1,0 +1,16 @@
+from vif.falcon.oracle.guided_oracle.property_expression import visual_property
+from vif.falcon.oracle.guided_oracle.expressions import (
+    OracleExpression,
+    aligned,
+    present,
+    angle,
+    placement,
+    position,
+    color,
+    shape,
+    size,
+    within,
+    mirrored,
+)
+def test_valid_customization() -> bool:
+    return size("left ear", (0.5, 0.5)) and size("right ear", (0.5, 0.5))
