@@ -13,4 +13,4 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     mirrored,
 )
 def test_valid_customization() -> bool:
-    return present("bee with three pairs of wings")
+    return visual_property("The bee has now three pairs of wings")

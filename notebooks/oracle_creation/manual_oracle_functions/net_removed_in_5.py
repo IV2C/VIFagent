@@ -18,9 +18,9 @@ def test_valid_customization() -> bool:
     m = f"middle {hd}"
     b = f"bottommost {hd}"
     return (
-        removed(n5)
-        and removed('arrow labelled "input 5"')
-        and removed(f"arrow going from the fifth node of the input layer to the {t}")
-        and removed(f"arrow going from the fifth node of the input layer to the {m}")
-        and removed(f"arrow going from the fifth node of the input layer to the {b}")
+        not present(n5)
+        and not present('arrow labelled "input 5"')
+        and not present(f"arrow going from the fifth node of the input layer to the {t}")
+        and not present(f"arrow going from the fifth node of the input layer to the {m}")
+        and not present(f"arrow going from the fifth node of the input layer to the {b}")
     )

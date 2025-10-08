@@ -12,4 +12,4 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 
 def test_valid_customization() -> bool:
-    return removed("second sphere on the left of the arrow") and removed("second sphere on the right of the arrow")
+    return not present("second sphere on the left of the arrow") and not present("second sphere on the right of the arrow")

@@ -4,4 +4,4 @@ def test_valid_customization() -> bool:
     bottom_node = "black node at the bottom on the left of the blue zone"
     link_one = f"link between the {bottom_left_node} and the node at the bottom in the left zone"
     link_two = f"link between the {bottom_node} and the node at the bottom in the blue zone"
-    return removed(bottom_left_node) and removed(bottom_node) and removed(link_one) and removed(link_two)
+    return not present(bottom_left_node) and not present(bottom_node) and not present(link_one) and not present(link_two)
