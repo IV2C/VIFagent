@@ -13,7 +13,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
 
 def test_valid_customization() -> bool:
     return (
-        removed("black vertical rectangle over VecSum")
-        and removed("black vertical rectangle over Stencil")
-        and removed("black vertical rectangle over MatMult")
+        not present("black vertical rectangle over VecSum")
+        and not present("black vertical rectangle over Stencil")
+        and not present("black vertical rectangle over MatMult")
     )

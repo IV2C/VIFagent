@@ -219,7 +219,7 @@ def shape(feature: str, shape: str) -> bool:
 
 def present(feature: str) -> bool:
     """
-    Asserts that a feature is present in the image.
+    Asserts that a specific feature is present in the image.
 
     Args:
         feature (str): The name of the feature present.
