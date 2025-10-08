@@ -15,22 +15,18 @@ class ChatMessage(BaseModel):
 
 
 
-class IteCustomizationOutput(BaseModel):
+class VerEvaluationOutput(BaseModel):
+    id:str
     #taken from the bench dataset
     initial_code: str
     initial_instruction: str
-    #exchanges with the llm
-    messages: list[ChatMessage]
-    # Contains data specific to the approach(number of tool calls, code generation errors, etc)
+    initial_solution:str
+    #expected and actual output
+    expected:bool
+    classified:bool
+    # Contains data specific to the approach(model config,number of tool calls, code generation errors, etc)
     additional_metadata: dict
     # config
     approach_name: str
-    edit_model_temperature: float
-    edit_model_name: str
-    feedback_model_temperature: float
-    feedback_model_name: str
     
     
-class BonCustomizationOutput(BaseModel):
-    #Maybe todo?
-    pass
