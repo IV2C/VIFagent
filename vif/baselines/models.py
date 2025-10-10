@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from PIL.Image import Image
 
 class CompletionUsage(BaseModel):
     completion_tokens: int
@@ -15,18 +15,25 @@ class ChatMessage(BaseModel):
 
 
 
-class VerEvaluationOutput(BaseModel):
+class VerEvaluation(BaseModel):
+    
+    #####Set before the call#####
     id:str
-    #taken from the bench dataset
-    initial_code: str
-    initial_instruction: str
-    initial_solution:str
-    #expected and actual output
-    expected:bool
-    classified:bool
-    # Contains data specific to the approach(model config,number of tool calls, code generation errors, etc)
-    additional_metadata: dict
     # config
     approach_name: str
+    config_metadata:dict
+    #taken from the bench dataset
+    initial_code: str
+    initial_image: Image
+    initial_instruction: str
+    initial_solution:str
+    initial_solution_image: Image
+    #expected and actual output
+    expected:bool
+    #####Set by the call#####
+    classified:bool
+    # Contains data specific to the approach(number of tool calls, code generation errors, etc)
+    additional_metadata: dict
+
     
     
