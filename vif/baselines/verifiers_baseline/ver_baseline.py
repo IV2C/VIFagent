@@ -1,7 +1,7 @@
 
 from abc import abstractmethod
 
-from vif.baselines.models import VerEvaluationOutput
+from vif.baselines.models import VerEvaluation
 
 
 class TexVerBaseline:
@@ -12,5 +12,5 @@ class TexVerBaseline:
         super().__init__()
 
     @abstractmethod
-    def get_feedback(self, code: str, instruction: str) -> VerEvaluationOutput:
+    def get_feedback(self,ver_eval_input:VerEvaluation) -> VerEvaluation:
         pass
