@@ -4,9 +4,9 @@ from vif.baselines.models import RegexException, RequestException
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 from vif.utils.image_utils import concat_images_horizontally, encode_image
 
-TEXT_IMAGE_VERIFY_SYSTEM_PROMPT: str = """
-You are a verification agent, your task is to assess whether a code applied a given customization instruction or not.
-You will be given the initial code, the customized code, both images(corresponding to the initial and customized code) and the instruction.
+IMAGE_VERIFY_SYSTEM_PROMPT: str = """
+You are a verification agent, your task is to assess whether a given customization instruction has been applied on a image or not.
+You will be given the initial and customized images and the instruction.
 
 Your response must always contain the final answer in the format:
 \\boxed{True} or \\boxed{False}
@@ -15,21 +15,12 @@ Answer with True when the instruction is applied, False when it is not.
 """
 
 TEXT_IMAGE_VERIFY_PROMPT: str = """
-INITIAL CODE:
-```
-{initial_code}
-```
-CUSTOMIZED CODE:
-```
-{customized_code}
-```
-
 INSTRUCTION:
 {instruction}
 """
 
 
-class TextVisualVerifier(TexVerBaseline):
+class VisualVerifier(TexVerBaseline):
     def __init__(self, *args, model, client: Client, temperature, **kwargs):
 
         self.model = model
@@ -49,7 +40,7 @@ class TextVisualVerifier(TexVerBaseline):
             [
                 {
                     "role": "system",
-                    "content": TEXT_IMAGE_VERIFY_SYSTEM_PROMPT,
+                    "content": IMAGE_VERIFY_SYSTEM_PROMPT,
                 },
                 {
                     "role": "user",
@@ -57,9 +48,7 @@ class TextVisualVerifier(TexVerBaseline):
                         {
                             "type": "text",
                             "text": TEXT_IMAGE_VERIFY_PROMPT.format(
-                                instruction=ver_eval_input.initial_instruction,
-                                initial_code=ver_eval_input.initial_code,
-                                customized_code=ver_eval_input.initial_solution,
+                                instruction=ver_eval_input.initial_instruction
                             ),
                         },
                         {
