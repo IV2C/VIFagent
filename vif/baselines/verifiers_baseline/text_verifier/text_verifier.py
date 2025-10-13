@@ -1,5 +1,6 @@
 import re
 from openai import Client
+from vif.baselines.models import RegexException
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 
 TEXT_VERIFY_SYSTEM_PROMPT: str = """
@@ -8,6 +9,8 @@ You will be given the initial code, the customized code, and the instruction.
 
 Your response must always contain the final answer in the format:
 \\boxed{True} or \\boxed{False}
+
+Answer with True when the instruction is applied, False when it is not.
 """
 
 TEXT_VERIFY_PROMPT: str = """
@@ -34,7 +37,7 @@ class TextVerifier(TexVerBaseline):
 
         super().__init__(*args, **kwargs)
 
-    def get_feedback(self, ver_eval_input):
+    def assess_customization(self, ver_eval_input):
 
         messages = (
             [
@@ -67,7 +70,7 @@ class TextVerifier(TexVerBaseline):
         id_match = re.search(pattern, cnt)
 
         if not id_match:
-            return None  # TODO handle errors
+            raise RegexException(pattern=pattern,content=cnt) 
 
         condition = id_match.group(1) == "True"
         ver_eval_input.classified = condition

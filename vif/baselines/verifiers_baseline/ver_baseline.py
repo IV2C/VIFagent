@@ -12,5 +12,5 @@ class TexVerBaseline:
         super().__init__()
 
     @abstractmethod
-    def get_feedback(self,ver_eval_input:VerEvaluation) -> VerEvaluation:
+    def assess_customization(self,ver_eval_input:VerEvaluation) -> VerEvaluation:
         pass
