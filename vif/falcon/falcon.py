@@ -3,7 +3,6 @@ import os
 from collections.abc import Callable
 from PIL import Image
 from vif.CodeMapper.mapping import MappingModule
-from vif.falcon.oracle.guided_oracle.guided_code_oracle import OracleGuidedCodeModule
 from vif.falcon.oracle.oracle import OracleModule
 from vif.prompts.edition_prompts import SYSTEM_PROMPT_CLARIFY
 from vif.falcon.edition import (
