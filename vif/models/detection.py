@@ -29,10 +29,19 @@ class SegmentationMask:
     x0: int  # in [0..width - 1]
     y1: int  # in [0..height - 1]
     x1: int  # in [0..width - 1]
-    mask: np.array  # [img_height, img_width] with values 0..255
+    mask: np.array # [img_height, img_width] with values 0..255
     label: str
     box_prob:float= None
     seg_prob:float=None
+
+@dataclasses.dataclass()
+class BoundingBox:
+    # bounding box pixel coordinates (not normalized)
+    y0: int  # in [0..height - 1]
+    x0: int  # in [0..width - 1]
+    y1: int  # in [0..height - 1]
+    x1: int  # in [0..width - 1]
+    label: str
 
 
 class dataclassJSONEncoder(json.JSONEncoder):

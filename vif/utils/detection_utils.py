@@ -13,56 +13,110 @@ import numpy as np
 from openai import OpenAI
 
 from vif.env import SEGMENTATION_ATTEMPTS
-from vif.models.detection import SegmentationMask
+from vif.models.detection import BoundingBox, SegmentationMask
 from vif.models.exceptions import InvalidMasksError, JsonFormatError, ParsingError
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
 from vif.utils.caching import CachedRequest, instantiate_cache
-from vif.utils.image_utils import adjust_bbox, encode_image, nmse
-
-
-def get_boxes(image: Image.Image, client: OpenAI, features, model, temperature):
-    encoded_image = encode_image(image=image)
-
-    response = client.chat.completions.create(
-        model=model,
-        temperature=temperature,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": DETECTION_PROMPT.format(
-                            labels=", ".join(
-                                ['"' + feature + '"' for feature in features]
-                            )
-                        ),
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{encoded_image}"},
-                    },
-                ],
-            }
-        ],
-    )
-    pattern = r"```(?:\w+)?\n([\s\S]+?)```"
-    id_match = re.search(pattern, response.choices[0].message.content)
-
-    if not id_match:
-
-        return None
-
-    json_boxes = id_match.group(1)
-    detected_boxes = json.loads(json_boxes)
-    detected_boxes = [adjust_bbox(box, image) for box in detected_boxes]
-    return detected_boxes
-
+from vif.utils.image_utils import  encode_image, nmse
 
 from google import genai
 from google.genai import types as genTypes
 
-# TODO might need to make these parameters
+
+def get_bounding_boxes(
+    image: Image.Image,
+    client: genai.Client,
+    features,
+    model,
+) -> list[BoundingBox]:
+    encoded_image = encode_image(image=image)
+
+    logger.info(f"Getting boxes for features : {','.join(features)}")
+
+    contents = [
+        genTypes.Content(
+            role="user",
+            parts=[
+                genTypes.Part.from_bytes(
+                    mime_type="image/png",
+                    data=encoded_image,
+                ),
+                genTypes.Part.from_text(
+                    text=DETECTION_PROMPT.format(
+                        labels=", ".join(['"' + feature + '"' for feature in features])
+                    )
+                ),
+            ],
+        ),
+    ]
+
+    token_data = []
+    for attempt_nb in range(SEGMENTATION_ATTEMPTS):
+
+        response = client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=genTypes.GenerateContentConfig(
+                temperature=0.5,
+                thinking_config=genTypes.ThinkingConfig(thinking_budget=0),
+                response_logprobs=True,
+                logprobs=1,
+            ),
+        )
+
+        pattern = r"```(?:\w+)?\n([\s\S]+?)```"
+        logger.info("LLM segmentation response: " + str(response.text))
+        res_meta = response.usage_metadata
+
+        ## handling none text error ##
+        if response.text is None:
+            error_msg = (
+                f"Error while parsing response, response is None: {str(response)}"
+            )
+            log_and_append_token_data(token_data, res_meta, error_msg)
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
+                raise ParsingError(error_msg)
+            continue
+
+        id_match = re.search(pattern, response.text)
+
+        ## handling parsing error ##
+        if not id_match:
+            error_msg = f"Error while parsing :{response.text}"
+
+            log_and_append_token_data(token_data, res_meta, error_msg)
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
+                raise ParsingError(error_msg)
+            continue
+
+        ## handling json decoding error ##
+        json_res = id_match.group(1)
+        try:
+            detected = json.loads(json_res)
+        except json.JSONDecodeError as jde:
+            error_msg = f"Error while decoding the json {json_res} : {jde}"
+            log_and_append_token_data(token_data, res_meta, error_msg)
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
+                raise JsonFormatError(
+                    f"Error while decoding the json {json_res} : {jde}"
+                )
+            continue
+
+        ## handling segmentation mask parsing error ##
+        try:
+            bounding_boxes = parse_bounding_boxes(detected, image.height, image.width)
+        except InvalidMasksError as ime:
+            log_and_append_token_data(token_data, res_meta, str(ime))
+            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
+                raise ime
+            attempt_nb += 1
+            continue
+        log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
+        break
+
+    return bounding_boxes
+
+
 full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")
 
 
@@ -308,6 +362,29 @@ def parse_segmentation_masks(
         np_mask = np_mask.astype(bool)
         masks.append(SegmentationMask(abs_y0, abs_x0, abs_y1, abs_x1, np_mask, label))
     return masks
+
+
+def parse_bounding_boxes(items: Any, img_height, img_width) -> list[BoundingBox]:
+
+    boxes = []
+    for item in items:
+        raw_box = item["box_2d"]
+        abs_y0 = int(item["box_2d"][0] / 1000 * img_height)
+        abs_x0 = int(item["box_2d"][1] / 1000 * img_width)
+        abs_y1 = int(item["box_2d"][2] / 1000 * img_height)
+        abs_x1 = int(item["box_2d"][3] / 1000 * img_width)
+        if abs_y0 >= abs_y1 or abs_x0 >= abs_x1:
+            print("Invalid bounding box", item["box_2d"])
+            continue
+        label = item["label"]
+        bbox_height = abs_y1 - abs_y0
+        bbox_width = abs_x1 - abs_x0
+        if bbox_height < 1 or bbox_width < 1:
+            print("Invalid bounding box")
+            continue
+
+        boxes.append(BoundingBox(abs_y0, abs_x0, abs_y1, abs_x1, label))
+    return boxes
 
 
 def dsim_box(

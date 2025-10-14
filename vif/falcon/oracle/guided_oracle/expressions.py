@@ -583,7 +583,7 @@ class size(OracleCondition):
             return (condition, feedback if not condition else [])
 
 
-##model settings for shape detection
+##model settings for shape and color detection
 clip_model, _, preprocess = open_clip.create_model_and_transforms(
     "ViT-B-32", pretrained="laion2b_s34b_b79k"
 )
