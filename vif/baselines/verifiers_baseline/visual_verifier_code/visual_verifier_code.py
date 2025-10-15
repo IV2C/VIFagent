@@ -22,7 +22,7 @@ def verify_customization(initial_image, customized_image):
     ...
 ```
 
-You must return the full function, including imports and signature.
+You must create the full function, including imports and signature.
 
 Your goal is to verify, by using Python code, whether the instruction has been correctly applied.
 Your final response must always contain the final answer in the format:

@@ -1,39 +1,24 @@
+from dataclasses import asdict, dataclass
 import json
 import re
 from openai import Client
+from regex import Match
 from vif.baselines.models import RegexException, RequestException
-from vif.baselines.verifiers_baseline.ViperGPT_adapt.ViperGPT_prompts import VIPER_CODEGEN_PROMPT
+from vif.baselines.verifiers_baseline.ViperGPT_adapt.ViperGPT_prompts import (
+    VIPER_CODEGEN_PROMPT,
+)
+from vif.baselines.verifiers_baseline.ViperGPT_adapt.image_patch import ImagePatch
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
-from vif.utils.image_utils import concat_images_horizontally, encode_image
-
-
-
-tools = [
-    {
-        "type": "function",
-        "name": "eval_code",
-        "description": "Interprets python code",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string",
-                    "description": "Python code that will be executed",
-                },
-            },
-            "required": ["sign"],
-        },
-    },
-]
 
 
 def eval_code(code: str, initial_image, customized_image):
-    globals = {
-        
-    }
+    globals = {"ImagePatch": ImagePatch}
     exec(code, globals)
-    return globals["code_result"](initial_image,customized_image)
+    return globals["execute_command"](initial_image, customized_image)
 
+@dataclass
+class ViperGPTMetadata:
+    generated_function:str
 
 class ViperGPTVerifier(TexVerBaseline):
     def __init__(self, *args, model, client: Client, temperature, **kwargs):
@@ -64,46 +49,26 @@ class ViperGPTVerifier(TexVerBaseline):
                 messages=messages,
                 model=self.model,
                 temperature=self.temperature,
-                tools=tools,
             )
         except Exception as e:
             raise RequestException(messages=messages, wrapped_exception=e)
 
-        tool_call_res = response.choices[0].message
-
-        for tool_call in tool_call_res.tool_calls:
-            name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments)
-            if name == "eval_code":
-                result = str(
-                    eval_code(
-                        code=args["code"],
-                        initial_image=ver_eval_input.initial_image,
-                        customized_image=ver_eval_input.initial_solution_image,
-                    )
-                )
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result,
-                }
-            )
-
-        final_response = self.client.chat.completions.create(
-            model=self.model,
-            temperature=self.temperature,
-            messages=messages,
-            tools=tools,
-        )
-
-        cnt = final_response.choices[0].message.content
-        pattern = r"\\boxed{(True|False)}"
-        id_match = re.search(pattern, cnt)
+        cnt = response.choices[0].message.content
+        pattern = r"```(?:\w+)?\n([\s\S]+?)```"
+        id_match: Match[str] = re.search(pattern, cnt)
 
         if not id_match:
             raise RegexException(pattern=pattern, content=cnt)
 
-        condition = id_match.group(1) == "True"
+        generated_function = id_match.group(1)
+        condition = eval_code(
+            generated_function,
+            ver_eval_input.initial_image,
+            ver_eval_input.initial_solution_image,
+        )
+        
+        metadata = ViperGPTMetadata(generated_function)
+        ver_eval_input.additional_metadata = asdict(metadata)
+        
         ver_eval_input.classified = condition
         return ver_eval_input

@@ -1,24 +1,25 @@
 from typing import Union
 import torch
-from vif.baselines.verifiers_baseline.ViperGPT_adapt import ViperGPT_config
+from vif.baselines.verifiers_baseline.ViperGPT_adapt.ViperGPT_config import ViperGPTConfig
 import torch.nn.functional as F
 
 
-def score(image, category, negative_categories):
+def score(image, prompt, negative_categories):
+    clip_model, clip_preprocess, clip_tokenizer = ViperGPTConfig.get_clip_model()
 
-    image = ViperGPT_config.preprocess(image).unsqueeze(0)
+    image = clip_preprocess(image).unsqueeze(0)
 
-    prompt_prefix = "photo of "
+    prompt_prefix = "diagram of "
     prompt = prompt_prefix + prompt
 
     negative_text_features = clip_negatives(prompt_prefix, negative_categories)
 
-    text = ViperGPT_config.clip_tokenizer([prompt])
+    text = clip_tokenizer([prompt])
 
-    image_features = ViperGPT_config.clip_model.encode_image(image)
+    image_features = clip_model.encode_image(image)
     image_features /= image_features.norm(dim=-1, keepdim=True)
 
-    pos_text_features = ViperGPT_config.clip_model.encode_text(text)
+    pos_text_features = clip_model.encode_text(text)
     pos_text_features /= pos_text_features.norm(dim=-1, keepdim=True)
 
     text_features = torch.concat([pos_text_features, negative_text_features], axis=0)
@@ -45,27 +46,35 @@ def clip_negatives(prompt_prefix, negative_categories=None):
     # negative_categories = negative_categories[:1000]
     # negative_categories = ["a cat", "a lamp"]
     negative_categories = [prompt_prefix + x for x in negative_categories]
-    negative_tokens = ViperGPT_config.clip_tokenizer(negative_categories)
+    negative_tokens = ViperGPTConfig.clip_tokenizer(negative_categories)
 
-    negative_text_features = ViperGPT_config.clip_model.encode_text(negative_tokens)
+    negative_text_features = ViperGPTConfig.clip_model.encode_text(negative_tokens)
     negative_text_features /= negative_text_features.norm(dim=-1, keepdim=True)
 
     return negative_text_features
 
 
-def classify(
-    image: torch.Tensor, categories: list[str], return_index=True
-):
-    
-    prompt_prefix = "photo of "
-    categories = [prompt_prefix + x for x in categories]
-    categories = ViperGPT_config.clip_tokenizer(categories)
+def classify(image: torch.Tensor, categories: list[str], return_index=True):
+    clip_model, clip_preprocess, clip_tokenizer = ViperGPTConfig.get_clip_model()
 
-    text_features = ViperGPT_config.clip_model.encode_text(categories)
+    
+    is_list = isinstance(image, list)
+    if is_list:
+        assert len(image) == len(categories)
+        image = [clip_preprocess(x).unsqueeze(0) for x in image]
+        image_clip = torch.cat(image, dim=0)
+    else:
+        image_clip = clip_preprocess(image).unsqueeze(0)
+
+    prompt_prefix = "diagram of "
+    categories = [prompt_prefix + x for x in categories]
+    categories = clip_tokenizer(categories)
+
+    text_features = clip_model.encode_text(categories)
     text_features = F.normalize(text_features, dim=-1)
 
-    image_features = self.model.encode_image(image_clip)
-    image_features = F.normalize(image_features, dim=-1)
+    image_features = clip_model.encode_image(image_clip)
+    image_features /= image_features.norm(dim=-1, keepdim=True)
 
     if image_clip.shape[0] == 1:
         # get category from image
@@ -87,3 +96,31 @@ def classify(
         if result.shape == ():
             result = result.item()
         return result
+
+
+def compare(images: list[torch.Tensor], prompt, return_scores=False):
+    clip_model, clip_preprocess, clip_tokenizer = ViperGPTConfig.get_clip_model()
+
+    
+    images = [clip_preprocess(im).unsqueeze(0) for im in images]
+    images = torch.cat(images, dim=0)
+
+    prompt_prefix = "diagram of "
+    prompt = prompt_prefix + prompt
+
+    text = clip_tokenizer([prompt])
+
+    image_features = clip_model.encode_image(images)
+    image_features = F.normalize(image_features, dim=-1)
+
+    text_features = clip_model.encode_text(text)
+    text_features = F.normalize(text_features, dim=-1)
+
+    sim = (image_features @ text_features.T).squeeze(
+        dim=-1
+    )  # Only one text, so squeeze
+
+    if return_scores:
+        return sim
+    res = sim.argmax()
+    return res

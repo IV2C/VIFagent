@@ -12,7 +12,9 @@ from word2number import w2n
 
 from vif.baselines.verifiers_baseline.ViperGPT_adapt import (
     ViperGPT_clip_utils,
-    ViperGPT_config,
+)
+from vif.baselines.verifiers_baseline.ViperGPT_adapt.ViperGPT_config import (
+    ViperGPTConfig,
 )
 from vif.baselines.verifiers_baseline.ViperGPT_adapt.utils import (
     load_json,
@@ -20,6 +22,7 @@ from vif.baselines.verifiers_baseline.ViperGPT_adapt.utils import (
 )
 from vif.models.detection import BoundingBox
 from vif.utils.detection_utils import get_bounding_boxes
+from vif.utils.image_utils import encode_image
 
 
 class ImagePatch:
@@ -150,7 +153,7 @@ class ImagePatch:
             a list of ImagePatch objects matching object_name contained in the crop
         """
         boxes: list[BoundingBox] = get_bounding_boxes(
-            self.cropped_image, ViperGPT_config.visual_client, object_name
+            self.cropped_image, ViperGPTConfig.visual_client, object_name
         )
         all_coordinates = [(box.x0, box.y1, box.x1, box.y0) for box in boxes]
 
@@ -190,7 +193,7 @@ class ImagePatch:
         """
         res = ViperGPT_clip_utils.score(
             image=self.cropped_image,
-            category=category,
+            prompt=category,
             negative_categories=negative_categories,
         )
 
@@ -220,7 +223,7 @@ class ImagePatch:
         return self._detect(
             name,
             negative_categories=negative_categories,
-            thresh=ViperGPT_config.thresh_clip,
+            thresh=ViperGPTConfig.thresh_clip,
         )
 
     def best_text_match(self, option_list: list[str] = None, prefix: str = None) -> str:
@@ -236,15 +239,14 @@ class ImagePatch:
         if prefix is not None:
             option_list_to_use = [prefix + " " + option for option in option_list]
 
-        model_name = ViperGPT_config.best_match_model
         image = self.cropped_image
         text = option_list_to_use
-        
-        selected = self.forward(model_name, image, text, task="classify")
+
+        selected = ViperGPT_clip_utils.classify(image, text)
 
         return option_list[selected]
 
-    def simple_query(self, question: str):
+    def simple_query(self, question: str = None):
         """Returns the answer to a basic question asked about the image. If no question is provided, returns the answer
         to "What is this?". The questions are about basic perception, and are not meant to be used for complex reasoning
         or external knowledge.
@@ -253,26 +255,36 @@ class ImagePatch:
         question : str
             A string describing the question to be asked.
         """
-        return self.forward("blip", self.cropped_image, question, task="qa")
+        if question == None:
+            question = "What is this?"
+        encoded_image = encode_image(self.cropped_image)
 
-    def compute_depth(self):
-        """Returns the median depth of the image crop
-        Parameters
-        ----------
-        Returns
-        -------
-        float
-            the median depth of the image crop
-        """
-        original_image = self.original_image
-        depth_map = self.forward("depth", original_image)
-        depth_map = depth_map[
-            original_image.shape[1] - self.upper : original_image.shape[1] - self.lower,
-            self.left : self.right,
-        ]
-        return (
-            depth_map.median()
-        )  # Ideally some kind of mode, but median is good enough for now
+        messages = (
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": question,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{encoded_image}"
+                            },
+                        },
+                    ],
+                },
+            ],
+        )
+
+        response = ViperGPTConfig.qa_client.chat.completions.create(
+            messages=messages,
+            model=ViperGPTConfig.qa_model,
+            temperature=ViperGPTConfig.qa_temperature,
+        )
+        return self.forward("blip", self.cropped_image, question, task="qa")
 
     def crop(self, left: int, lower: int, right: int, upper: int) -> ImagePatch:
         """Returns a new ImagePatch containing a crop of the original image at the given coordinates.
@@ -368,22 +380,11 @@ def best_image_match(
     if len(list_patches) == 0:
         return None
 
-    model = ViperGPT_config.best_match_model
-
     scores = []
     for cont in content:
-        if model == "clip":
-            res = list_patches[0].forward(
-                model,
-                [p.cropped_image for p in list_patches],
-                cont,
-                task="compare",
-                return_scores=True,
-            )
-        else:
-            res = list_patches[0].forward(
-                model, [p.cropped_image for p in list_patches], cont, task="score"
-            )
+        res = ViperGPT_clip_utils.compare(
+            [p.cropped_image for p in list_patches], cont, True
+        )
         scores.append(res)
     scores = torch.stack(scores).mean(dim=0)
     scores = scores.argmax().item()  # Argmax over all image patches
@@ -427,21 +428,32 @@ def distance(
     return dist
 
 
-def llm_query(query, context=None, long_answer=True, queues=None):
-    """Answers a text question using GPT-3. The input question is always a formatted string with a variable in it.
+def llm_query(query):
+    """Answers a text question using an LLM. The input question is always a formatted string with a variable in it.
 
     Parameters
     ----------
     query: str
         the text question to ask. Must not contain any reference to 'the image' or 'the photo', etc.
     """
-    if long_answer:
-        return forward(model_name="gpt3_general", prompt=query, queues=queues)
-    else:
-        return forward(model_name="gpt3_qa", prompt=[query, context], queues=queues)
 
-
-def process_guesses(prompt, guess1=None, guess2=None, queues=None):
-    return forward(
-        model_name="gpt3_guess", prompt=[prompt, guess1, guess2], queues=queues
+    messages = (
+        [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": query,
+                    }
+                ],
+            },
+        ],
     )
+
+    response = ViperGPTConfig.query_client.chat.completions.create(
+        messages=messages,
+        model=ViperGPTConfig.query_model,
+        temperature=ViperGPTConfig.query_temperature,
+    )
+    return response.choices[0].message.content
