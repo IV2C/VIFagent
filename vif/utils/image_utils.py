@@ -6,6 +6,7 @@ import math
 from typing import Sequence
 from PIL import Image
 import numpy as np
+import torch
 
 
 def concat_images_horizontally(ims: list[Image.Image]):
@@ -59,7 +60,15 @@ def encode_image(image_path: str):
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
-def encode_image(image: Image.Image):
+def encode_image(image):
+    if isinstance(image, torch.Tensor):
+        # assume CHW or BCHW
+        if image.ndim == 4:
+            image = image[0]  # take first in batch
+        if image.ndim == 3:
+            image = image.permute(1, 2, 0).detach().cpu()  # CHW -> HWC
+        image = Image.fromarray((image.numpy() * 255).astype("uint8"))
+
     buffered = BytesIO()
     image = image.convert("RGB")
     image.save(buffered, format="JPEG")

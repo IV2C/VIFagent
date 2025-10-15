@@ -24,9 +24,7 @@ class ImagePatch:
     simple_query(question: str=None)->str
         Returns the answer to a basic question asked about the image. If no question is provided, returns the answer to "What is this?".
     llm_query(question: str, long_answer: bool)->str
-        References a large language model (e.g., GPT) to produce a response to the given question. Default is short-form answers, can be made long-form responses with the long_answer flag.
-    compute_depth()->float
-        Returns the median depth of the image crop.
+        References a large language model (e.g., GPT) to produce a response to the given question.
     crop(left: int, lower: int, right: int, upper: int)->ImagePatch
         Returns a new ImagePatch object containing a crop of the image at the given coordinates.
     """
@@ -180,27 +178,6 @@ class ImagePatch:
         """
         return simple_query(self.cropped_image, question)
 
-    def compute_depth(self):
-        """Returns the median depth of the image crop
-        Parameters
-        ----------
-        Returns
-        -------
-        float
-            the median depth of the image crop
-
-        Examples
-        --------
-        >>> # the bar furthest away
-        >>> def execute_command(image)->ImagePatch:
-        >>>     image_patch = ImagePatch(image)
-        >>>     bar_patches = image_patch.find("bar")
-        >>>     bar_patches.sort(key=lambda bar: bar.compute_depth())
-        >>>     return bar_patches[-1]
-        """
-        depth_map = compute_depth(self.cropped_image)
-        return depth_map.median()
-
     def crop(self, left: int, lower: int, right: int, upper: int) -> ImagePatch:
         """Returns a new ImagePatch cropped from the current ImagePatch.
         Parameters
@@ -238,17 +215,13 @@ class ImagePatch:
         """
         return self.left <= right and self.right >= left and self.lower <= upper and self.upper >= lower
 
-    def llm_query(self, question: str, long_answer: bool = True) -> str:
-        """Answers a text question using GPT-3. The input question is always a formatted string with a variable in it.
+    def llm_query(self, question: str) -> str:
+        """Answers a text question using an LLM. The input question is always a formatted string with a variable in it.
 
         Parameters
         ----------
         question: str
             the text question to ask. Must not contain any reference to 'the image' or 'the photo', etc.
-        long_answer: bool
-            whether to return a short answer or a long answer. Short answers are one or at most two words, very concise.
-            Long answers are longer, and may be paragraphs and explanations. Defalt is True (so long answer).
-
         Examples
         --------
         >>> # What is the city this building is in?
@@ -257,7 +230,7 @@ class ImagePatch:
         >>>     building_patches = image_patch.find("building")
         >>>     building_patch = building_patches[0]
         >>>     building_name = building_patch.simple_query("What is the name of the building?")
-        >>>     return building_patch.llm_query(f"What city is {building_name} in?", long_answer=False)
+        >>>     return building_patch.llm_query(f"What city is {building_name} in?")
 
         >>> # Who invented this object?
         >>> def execute_command(image) -> str:
@@ -265,17 +238,9 @@ class ImagePatch:
         >>>     object_patches = image_patch.find("object")
         >>>     object_patch = object_patches[0]
         >>>     object_name = object_patch.simple_query("What is the name of the object?")
-        >>>     return object_patch.llm_query(f"Who invented {object_name}?", long_answer=False)
+        >>>     return object_patch.llm_query(f"Who invented {object_name}?")
 
-        >>> # Explain the history behind this object.
-        >>> def execute_command(image) -> str:
-        >>>     image_patch = ImagePatch(image)
-        >>>     object_patches = image_patch.find("object")
-        >>>     object_patch = object_patches[0]
-        >>>     object_name = object_patch.simple_query("What is the name of the object?")
-        >>>     return object_patch.llm_query(f"What is the history behind {object_name}?", long_answer=True)
-        """
-        return llm_query(question, long_answer)
+        return llm_query(question)
 
 
 def best_image_match(list_patches: List[ImagePatch], content: List[str], return_index=False) -> Union[ImagePatch, int]:
@@ -327,7 +292,11 @@ Consider the following guidelines:
 - Use base Python (comparison, sorting) for basic logical operations, left/right/up/down, math, etc.
 - Use the llm_query function to access external information and answer informational questions not concerning the image.
 - Write a function execute_command that takes the initial_image and modified_image as input and return a boolean => True if the instruction is applied, False otherwise.
+- The function should be encapsulated within backticks as follows
+    ```
+    execute_command(initial_image,modified_image)
+    ```
 
-Here is the instruction
+Here is the instruction:
 {instruction}
 '''
