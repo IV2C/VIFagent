@@ -3,8 +3,19 @@ import random
 import re
 import numpy as np
 
+from notebooks.verifier_ds_creation.invalid_variant_creation import (
+    BW_COLORS,
+    XCOLOR_COLOR_LIST,
+    XCOLOR_SHADE_LIST,
+    try_generate_incorect_code,
+)
+from vif.utils.image_utils import nmse
+from vif.utils.renderer.tex_renderer import TexRenderer
+
 random.seed(100)
-PER_RANGE_SOLUTIONS = 1
+PER_RANGE_SOLUTIONS = 2
+MAX_REG_AMOUNT = 5
+isint = lambda v: math.floor(v) == v
 
 
 def handle_def(template_code: str) -> list[str]:
@@ -13,14 +24,17 @@ def handle_def(template_code: str) -> list[str]:
 
 def correct_from_range(template_code: str) -> list[str]:
     created_solution_code = [template_code]
-    for f in reversed(
-        list(re.finditer(r"§range\(([^,]+),([^,]+),([^)]+)\)", template_code))
-    ):
+    found_ranges = list(
+        re.finditer(r"§range\(([^,]+),([^,]+),([^)]+)\)", template_code)
+    )
+
+    if len(found_ranges) > MAX_REG_AMOUNT:
+        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
+    for f in reversed(found_ranges):
         temp_solutions = []
 
         lower = float(f.group(1))
         higher = float(f.group(2))
-        isint = lambda v: math.floor(v) == v
 
         ranges_are_ints = all(isint(value) for value in [lower, higher])
 
@@ -45,14 +59,20 @@ def correct_from_range(template_code: str) -> list[str]:
 
 def correct_from_rangei(template_code: str) -> list[str]:
     created_solution_code = [template_code]
-    for f in reversed(list(re.finditer(r"§rangei\(([^,]+),([^)]+)\)", template_code))):
+    found_ranges = list(re.finditer(r"§rangei\(([^,]+),([^)]+)\)", template_code))
+
+    if len(found_ranges) > MAX_REG_AMOUNT:
+        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
+
+    for f in reversed(found_ranges):
         temp_solutions = []
 
         lower = float(f.group(1)) - float(f.group(2))
         higher = float(f.group(1)) + float(f.group(2))
-        isint = lambda v: math.floor(v) == v
 
-        ranges_are_ints = all(isint(value) for value in [float(f.group(2)), float(f.group(1))])
+        ranges_are_ints = all(
+            isint(value) for value in [float(f.group(2)), float(f.group(1))]
+        )
 
         nb_range_sol = PER_RANGE_SOLUTIONS
 
@@ -75,18 +95,24 @@ def correct_from_rangei(template_code: str) -> list[str]:
 
 def correct_from_choices(template_code: str) -> list[str]:
     created_solution_code = [template_code]
-    for f in reversed(
-        list(re.finditer(r"§choice\((\[[^]]+\]),([^)]+)\)", template_code))
-    ):
+    found_ranges = list(re.finditer(r"§choice\((\[[^]]+\]),([^)]+)\)", template_code))
+    if len(found_ranges) > MAX_REG_AMOUNT:
+        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
+
+    for f in reversed(found_ranges):
         temp_solutions = []
 
         choices: list = eval(f.group(1))
+
+        choices_are_ints = all(
+            str(value).isnumeric() and isint(value) for value in choices
+        )
 
         for choice in choices:
             for possible_solution in created_solution_code:
                 create_code = (
                     possible_solution[: f.start()]
-                    + str(choice)
+                    + (str(choice) if not choices_are_ints else str(int(choice)))
                     + possible_solution[f.end() :]
                 )
                 temp_solutions.append(create_code)
@@ -112,6 +138,8 @@ def incorrect_from_range(template_code: str) -> list[str]:
     )
     if len(found_ranges) == 0:
         return []
+    if len(found_ranges) > MAX_REG_AMOUNT:
+        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
     identity = np.identity(len(found_ranges))
     created_solution_code = [
         [template_code for _ in range(2)] for _ in range(len(found_ranges))
@@ -147,6 +175,8 @@ def incorrect_from_rangei(template_code: str) -> list[str]:
     found_ranges = list(re.finditer(r"§rangei\(([^,]+),([^)]+)\)", template_code))
     if len(found_ranges) == 0:
         return []
+    if len(found_ranges) > MAX_REG_AMOUNT:
+        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
     identity = np.identity(len(found_ranges))
     created_solution_code = [
         [template_code for _ in range(2)] for _ in range(len(found_ranges))
@@ -182,6 +212,9 @@ def incorrect_from_choices(template_code: str) -> list[str]:
     found_ranges = list(re.finditer(r"§choice\((\[[^]]+\]),([^)]+)\)", template_code))
     if len(found_ranges) == 0:
         return []
+    if len(found_ranges) > MAX_REG_AMOUNT:
+        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
+
     identity = np.identity(len(found_ranges))
     created_solution_code = [template_code for _ in range(len(found_ranges))]
     # *2 for lower than lower range and higher than higher range
@@ -210,35 +243,11 @@ def incorrect_from_choices(template_code: str) -> list[str]:
     return [x for x in created_solution_code if x != None]
 
 
-xcolor_shade_list = {50, 100, 200, 300, 400, 500, 600, 700, 800, 900}
-
-xcolor_color_list = {
-    "Red",
-    "Pink",
-    "Purple",
-    "Deep",
-    "Purple",
-    "Indigo",
-    "Blue",
-    "LightBlue",
-    "Cyan",
-    "Teal",
-    "Green",
-    "LightGreen",
-    "Lime",
-    "Yellow",
-    "Amber",
-    "Orange",
-    "DeepOrange",
-    "Brown",
-    "Grey",
-    "BlueGrey",
-    "Black",
-}
-
-full_colorshade_list = {
-    color + str(shade) for color in xcolor_color_list for shade in xcolor_shade_list
-}.union(xcolor_color_list)
+full_colorshade_list = (
+    {color + str(shade) for color in XCOLOR_COLOR_LIST for shade in XCOLOR_SHADE_LIST}
+    .union(XCOLOR_COLOR_LIST)
+    .union(BW_COLORS)
+)
 
 
 def guess_invalid_choice(choices: list[str]):
@@ -246,10 +255,10 @@ def guess_invalid_choice(choices: list[str]):
     if all([choice.isnumeric() for choice in choices]):
         # detecting color shades of xcolor-material
         int_choices = [int(choice) for choice in choices]
-        if all([choice in xcolor_shade_list for choice in int_choices]):
-            non_selected_shades = xcolor_shade_list.difference(set(int_choices))
+        if all([choice in XCOLOR_SHADE_LIST for choice in int_choices]):
+            non_selected_shades = XCOLOR_SHADE_LIST.difference(set(int_choices))
             if len(non_selected_shades) > 0:
-                return random.choice(list(non_selected_shades))
+                return int(random.choice(list(non_selected_shades)))
             else:
                 return None
 
@@ -279,11 +288,16 @@ def get_default(template_code):
     return default_choices(default_range(default_rangei(template_code)))
 
 
-def generate_all_incorrect_solutions(template_code: str):
+def generate_all_incorrect_solutions(original_code: str, template_code: str):
+    ignored = False
     template_code = handle_def(template_code)[0]
     incorrect_templated_codes = (
         incorrect_from_range(template_code)
         + incorrect_from_rangei(template_code)
         + incorrect_from_choices(template_code)
     )
-    return [get_default(code) for code in incorrect_templated_codes]
+    if len(incorrect_templated_codes) == 0:
+        incorrect_templated_codes = try_generate_incorect_code(original_code, 5)
+    if len(incorrect_templated_codes) == 0:
+        return [],True
+    return [get_default(code) for code in incorrect_templated_codes],ignored
