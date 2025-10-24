@@ -15,3 +15,4 @@ debug_hidden1.png
 debug_hidden2.png
 .dataset/
 .oui/**
+notebooks/protos/dataset_full_run/.debug/**
