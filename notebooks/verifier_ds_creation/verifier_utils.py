@@ -39,7 +39,7 @@ def correct_from_range(template_code: str) -> list[str]:
         ranges_are_ints = all(isint(value) for value in [lower, higher])
 
         nb_range_sol = PER_RANGE_SOLUTIONS
-        current_range = [i for i in np.linspace(lower, higher, nb_range_sol)]
+        current_range = [round(i, 2) for i in np.linspace(lower, higher, nb_range_sol)]
 
         for possible_range_float in current_range:
             for possible_solution in created_solution_code:
@@ -76,7 +76,7 @@ def correct_from_rangei(template_code: str) -> list[str]:
 
         nb_range_sol = PER_RANGE_SOLUTIONS
 
-        current_range = [i for i in np.linspace(lower, higher, nb_range_sol)]
+        current_range = [round(i, 2) for i in np.linspace(lower, higher, nb_range_sol)]
         for possible_range_float in current_range:
             for possible_solution in created_solution_code:
                 create_code = (
@@ -121,126 +121,8 @@ def correct_from_choices(template_code: str) -> list[str]:
 
 
 INCORRECT_DISTANCE_RATIO = (
-    3 / 10
-)  # 3 tenth of the range of possible solution away from the lower and higher limits
-
-
-def incorrect_from_range(template_code: str) -> list[str]:
-    """Generates len(number of ranges)*2 invalid solutions from ranges in template code
-
-    Args:
-        template_code (str): The template code
-
-    """
-
-    found_ranges = list(
-        re.finditer(r"§range\(([^,]+),([^,]+),([^)]+)\)", template_code)
-    )
-    if len(found_ranges) == 0:
-        return []
-    if len(found_ranges) > MAX_REG_AMOUNT:
-        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
-    identity = np.identity(len(found_ranges))
-    created_solution_code = [
-        [template_code for _ in range(2)] for _ in range(len(found_ranges))
-    ]
-    # *2 for lower than lower range and higher than higher range
-    for id, f in enumerate(reversed(found_ranges)):
-
-        lower = float(f.group(1))
-        higher = float(f.group(2))
-        default = float(f.group(3))
-
-        for sol_id, is_incorrect in enumerate(identity[id]):
-            if is_incorrect:
-                current_distance = INCORRECT_DISTANCE_RATIO * (higher - lower)
-                value_used = [(lower - current_distance), (higher + current_distance)]
-            else:
-                value_used = [default, default]
-
-            sol1 = created_solution_code[sol_id][0]
-            sol2 = created_solution_code[sol_id][1]
-            created_solution_code[sol_id][0] = (
-                sol1[: f.start()] + str(value_used[0]) + sol1[f.end() :]
-            )
-            created_solution_code[sol_id][1] = (
-                sol2[: f.start()] + str(value_used[1]) + sol2[f.end() :]
-            )
-
-    return [code for codes in created_solution_code for code in codes]
-
-
-def incorrect_from_rangei(template_code: str) -> list[str]:
-
-    found_ranges = list(re.finditer(r"§rangei\(([^,]+),([^)]+)\)", template_code))
-    if len(found_ranges) == 0:
-        return []
-    if len(found_ranges) > MAX_REG_AMOUNT:
-        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
-    identity = np.identity(len(found_ranges))
-    created_solution_code = [
-        [template_code for _ in range(2)] for _ in range(len(found_ranges))
-    ]
-    # *2 for lower than lower range and higher than higher range
-    for id, f in enumerate(reversed(found_ranges)):
-
-        default = float(f.group(1))
-        higher = default + float(f.group(2))
-        lower = default - float(f.group(2))
-
-        for sol_id, is_incorrect in enumerate(identity[id]):
-            if is_incorrect:
-                current_distance = INCORRECT_DISTANCE_RATIO * (higher - lower)
-                value_used = [(lower - current_distance), (higher + current_distance)]
-            else:
-                value_used = [default, default]
-
-            sol1 = created_solution_code[sol_id][0]
-            sol2 = created_solution_code[sol_id][1]
-            created_solution_code[sol_id][0] = (
-                sol1[: f.start()] + str(value_used[0]) + sol1[f.end() :]
-            )
-            created_solution_code[sol_id][1] = (
-                sol2[: f.start()] + str(value_used[1]) + sol2[f.end() :]
-            )
-
-    return [code for codes in created_solution_code for code in codes]
-
-
-def incorrect_from_choices(template_code: str) -> list[str]:
-
-    found_ranges = list(re.finditer(r"§choice\((\[[^]]+\]),([^)]+)\)", template_code))
-    if len(found_ranges) == 0:
-        return []
-    if len(found_ranges) > MAX_REG_AMOUNT:
-        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
-
-    identity = np.identity(len(found_ranges))
-    created_solution_code = [template_code for _ in range(len(found_ranges))]
-    # *2 for lower than lower range and higher than higher range
-    for id, f in enumerate(reversed(found_ranges)):
-        choices: list = [str(v) for v in eval(f.group(1))]
-        default = f.group(2)
-
-        for sol_id, is_incorrect in enumerate(identity[id]):
-
-            if created_solution_code[sol_id] == None:
-                continue
-
-            if is_incorrect:
-                value_used = guess_invalid_choice(choices)
-                if value_used == None:  # Could not guess an invalid choice
-                    created_solution_code[sol_id] = None
-                    continue
-            else:
-                value_used = default
-
-            sol1 = created_solution_code[sol_id]
-            created_solution_code[sol_id] = (
-                sol1[: f.start()] + str(value_used) + sol1[f.end() :]
-            )
-
-    return [x for x in created_solution_code if x != None]
+    4 / 10
+)  # 4 tenth of the range of possible solution away from the lower and higher limits
 
 
 full_colorshade_list = (
@@ -272,6 +154,99 @@ def guess_invalid_choice(choices: list[str]):
     return None
 
 
+def get_incorrect_for_reg(found_reg: re.Match, code: str):
+    streg = found_reg.group()
+
+    if "choice" in streg:
+        choices: list = [str(v) for v in eval(found_reg.group(6))]
+
+        value_used = guess_invalid_choice(choices)
+        if value_used == None:  # Could not guess an invalid choice
+            return None
+        return code[: found_reg.start()] + str(value_used) + code[found_reg.end() :]
+    else:
+        if "rangei" in streg:
+            default = float(found_reg.group(4))
+            higher = default + float(found_reg.group(5))
+            lower = default - float(found_reg.group(5))
+            ranges_are_ints = all(
+                isint(value)
+                for value in [float(found_reg.group(4)), float(found_reg.group(5))]
+            )
+        elif "range" in streg:
+            lower = float(found_reg.group(1))
+            higher = float(found_reg.group(2))
+            default = float(found_reg.group(3))
+            ranges_are_ints = all(isint(value) for value in [lower, higher])
+        current_distance = INCORRECT_DISTANCE_RATIO * (higher - lower)
+        value_used = random.choice(
+            [(lower - current_distance), (higher + current_distance)]
+        )  # TODO is that good?
+        return (
+            code[: found_reg.start()]
+            + (
+                str(round(value_used, 2))
+                if not ranges_are_ints
+                else str(int(value_used))
+            )
+            + code[found_reg.end() :]
+        )
+
+
+def get_default_for_reg(found_reg: re.Match, code: str):
+    streg = found_reg.group()
+
+    if "choice" in streg:
+        default = found_reg.group(7)
+    else:
+        if "rangei" in streg:
+            default = found_reg.group(4)
+        elif "range" in streg:
+            default = found_reg.group(3)
+    return code[: found_reg.start()] + (str(default)) + code[found_reg.end() :]
+
+
+def all_incorrect_from_template(template_code: str) -> list[str]:
+    """Generates len(number of ranges)*2 invalid solutions from ranges in template code
+
+    Args:
+        template_code (str): The template code
+
+    """
+
+    found_ranges = list(
+        re.finditer(
+            r"§(?:range\(([^,]+),([^,]+),([^)]+)\)|rangei\(([^,]+),([^)]+)\)|choice\((\[[^]]+\]),([^)]+)\))",
+            template_code,
+        )
+    )
+    if len(found_ranges) == 0:
+        return []
+    if len(found_ranges) > MAX_REG_AMOUNT:
+        sampled = sorted(random.sample(range(len(found_ranges)), len(found_ranges)-MAX_REG_AMOUNT))
+        made_defaults_ranges = [found_ranges[i] for i in sampled]
+        for reg in reversed(made_defaults_ranges):
+            template_code = get_default_for_reg(reg,template_code)
+    found_ranges = list(
+            re.finditer(
+                r"§(?:range\(([^,]+),([^,]+),([^)]+)\)|rangei\(([^,]+),([^)]+)\)|choice\((\[[^]]+\]),([^)]+)\))",
+                template_code,
+            )
+        )#recomputed_can be optimized, but not necessary
+    arrangements = create_arrangements(len(found_ranges))
+    all_resulting_codes = []
+    # *2 for lower than lower range and higher than higher range
+    for incorrect_array in arrangements:
+        current_code = template_code
+        for is_incorrect, found_reg in zip(incorrect_array, reversed(found_ranges)):
+            if is_incorrect:
+                current_code = get_incorrect_for_reg(found_reg, current_code)
+            else:
+                current_code = get_default_for_reg(found_reg, current_code)
+        all_resulting_codes.append(current_code)
+    return all_resulting_codes
+
+
 def default_range(template_code):
     return re.sub(r"§range\([^,]+,[^,]+,([^)]+)\)", r"\1", template_code)
 
@@ -291,13 +266,29 @@ def get_default(template_code):
 def generate_all_incorrect_solutions(original_code: str, template_code: str):
     ignored = False
     template_code = handle_def(template_code)[0]
-    incorrect_templated_codes = (
-        incorrect_from_range(template_code)
-        + incorrect_from_rangei(template_code)
-        + incorrect_from_choices(template_code)
-    )
+    incorrect_templated_codes = all_incorrect_from_template(template_code)
     if len(incorrect_templated_codes) == 0:
         incorrect_templated_codes = try_generate_incorect_code(original_code, 5)
     if len(incorrect_templated_codes) == 0:
-        return [],True
-    return [get_default(code) for code in incorrect_templated_codes],ignored
+        return [], True
+    return [get_default(code) for code in incorrect_templated_codes], ignored
+
+
+from itertools import combinations
+
+
+def create_arrangements(
+    arr_size, result_amount: int = -1, true_values_nb: int = 2
+):
+
+    arrangements = []
+
+    for i, j in combinations(range(arr_size), true_values_nb):
+        arr = [0] * arr_size
+        arr[i] = arr[j] = 1
+        arrangements.append(arr)
+
+    if result_amount < 0:
+        return arrangements
+    else:
+        return random.sample(arrangements, result_amount)
