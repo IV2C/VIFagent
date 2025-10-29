@@ -47,6 +47,16 @@ class FalconVerifier(TexVerBaseline):
 
         super().__init__(*args, **kwargs)
 
+    def get_config_metadata(self):
+        return {
+            "name": "Falcon",
+            "oracle_gen_model": self.oracle_gen_model,
+            "oracle_gen_model_temperature": self.oracle_gen_model_temperature,
+            "vision_model": self.vision_model,
+            "property_model": self.property_model,
+            "property_model_temperature": self.property_model_temperature,
+        }
+
     def assess_customization(self, ver_eval_input):
 
         oracle, metrics = self.oracle_module.get_oracle(

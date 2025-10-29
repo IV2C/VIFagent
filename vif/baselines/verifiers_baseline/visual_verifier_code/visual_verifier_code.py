@@ -58,7 +58,7 @@ tools = [
 def eval_code(code: str, initial_image, customized_image):
     globals = {}
     exec(code, globals)
-    return globals["verify_customization"](initial_image,customized_image)
+    return globals["verify_customization"](initial_image, customized_image)
 
 
 class VisualCodeVerifier(TexVerBaseline):
@@ -69,6 +69,13 @@ class VisualCodeVerifier(TexVerBaseline):
         self.temperature = temperature
 
         super().__init__(*args, **kwargs)
+
+    def get_config_metadata(self):
+        return {
+            "name": "VisualCodeVerifier",
+            "model": self.model,
+            "temperature": self.temperature,
+        }
 
     def assess_customization(self, ver_eval_input):
 

@@ -36,7 +36,12 @@ class TextVerifier(TexVerBaseline):
         self.temperature = temperature
 
         super().__init__(*args, **kwargs)
-
+    def get_config_metadata(self):
+        return {
+            "name": "TextVerifier",
+            "model": self.model,
+            "temperature": self.temperature,
+        }
     def assess_customization(self, ver_eval_input):
 
         messages = (
