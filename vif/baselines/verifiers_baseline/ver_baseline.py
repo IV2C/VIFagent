@@ -14,3 +14,7 @@ class TexVerBaseline:
     @abstractmethod
     def assess_customization(self,ver_eval_input:VerEvaluation) -> VerEvaluation:
         pass
+    
+    @abstractmethod
+    def get_config_metadata(self)->dict:
+        pass

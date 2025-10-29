@@ -38,6 +38,13 @@ class TextVisualVerifier(TexVerBaseline):
 
         super().__init__(*args, **kwargs)
 
+    def get_config_metadata(self):
+        return {
+            "name": "TextVisualVerifier",
+            "model": self.model,
+            "temperature": self.temperature,
+        }
+
     def assess_customization(self, ver_eval_input):
 
         concat_image = concat_images_horizontally(

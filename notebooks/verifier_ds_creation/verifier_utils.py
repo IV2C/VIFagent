@@ -7,10 +7,8 @@ from notebooks.verifier_ds_creation.invalid_variant_creation import (
     BW_COLORS,
     XCOLOR_COLOR_LIST,
     XCOLOR_SHADE_LIST,
-    try_generate_incorect_code,
+    apply_random_modifications,
 )
-from vif.utils.image_utils import nmse
-from vif.utils.renderer.tex_renderer import TexRenderer
 
 random.seed(100)
 PER_RANGE_SOLUTIONS = 2
@@ -20,104 +18,6 @@ isint = lambda v: math.floor(v) == v
 
 def handle_def(template_code: str) -> list[str]:
     return [re.sub(r"§def\((.*?)\)", r"\1", template_code)]
-
-
-def correct_from_range(template_code: str) -> list[str]:
-    created_solution_code = [template_code]
-    found_ranges = list(
-        re.finditer(r"§range\(([^,]+),([^,]+),([^)]+)\)", template_code)
-    )
-
-    if len(found_ranges) > MAX_REG_AMOUNT:
-        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
-    for f in reversed(found_ranges):
-        temp_solutions = []
-
-        lower = float(f.group(1))
-        higher = float(f.group(2))
-
-        ranges_are_ints = all(isint(value) for value in [lower, higher])
-
-        nb_range_sol = PER_RANGE_SOLUTIONS
-        current_range = [round(i, 2) for i in np.linspace(lower, higher, nb_range_sol)]
-
-        for possible_range_float in current_range:
-            for possible_solution in created_solution_code:
-                create_code = (
-                    possible_solution[: f.start()]
-                    + str(
-                        possible_range_float
-                        if not ranges_are_ints
-                        else int(possible_range_float)
-                    )
-                    + possible_solution[f.end() :]
-                )
-                temp_solutions.append(create_code)
-        created_solution_code = temp_solutions
-    return created_solution_code
-
-
-def correct_from_rangei(template_code: str) -> list[str]:
-    created_solution_code = [template_code]
-    found_ranges = list(re.finditer(r"§rangei\(([^,]+),([^)]+)\)", template_code))
-
-    if len(found_ranges) > MAX_REG_AMOUNT:
-        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
-
-    for f in reversed(found_ranges):
-        temp_solutions = []
-
-        lower = float(f.group(1)) - float(f.group(2))
-        higher = float(f.group(1)) + float(f.group(2))
-
-        ranges_are_ints = all(
-            isint(value) for value in [float(f.group(2)), float(f.group(1))]
-        )
-
-        nb_range_sol = PER_RANGE_SOLUTIONS
-
-        current_range = [round(i, 2) for i in np.linspace(lower, higher, nb_range_sol)]
-        for possible_range_float in current_range:
-            for possible_solution in created_solution_code:
-                create_code = (
-                    possible_solution[: f.start()]
-                    + str(
-                        possible_range_float
-                        if not ranges_are_ints
-                        else int(possible_range_float)
-                    )
-                    + possible_solution[f.end() :]
-                )
-                temp_solutions.append(create_code)
-        created_solution_code = temp_solutions
-    return created_solution_code
-
-
-def correct_from_choices(template_code: str) -> list[str]:
-    created_solution_code = [template_code]
-    found_ranges = list(re.finditer(r"§choice\((\[[^]]+\]),([^)]+)\)", template_code))
-    if len(found_ranges) > MAX_REG_AMOUNT:
-        found_ranges = random.sample(found_ranges, MAX_REG_AMOUNT)
-
-    for f in reversed(found_ranges):
-        temp_solutions = []
-
-        choices: list = eval(f.group(1))
-
-        choices_are_ints = all(
-            str(value).isnumeric() and isint(value) for value in choices
-        )
-
-        for choice in choices:
-            for possible_solution in created_solution_code:
-                create_code = (
-                    possible_solution[: f.start()]
-                    + (str(choice) if not choices_are_ints else str(int(choice)))
-                    + possible_solution[f.end() :]
-                )
-                temp_solutions.append(create_code)
-        created_solution_code = temp_solutions
-    return created_solution_code
 
 
 INCORRECT_DISTANCE_RATIO = (
@@ -143,6 +43,17 @@ def guess_invalid_choice(choices: list[str]):
                 return int(random.choice(list(non_selected_shades)))
             else:
                 return None
+        if all([isint(float(choice)) for choice in choices]):
+            lower = min(int_choices)
+            higher = max(int_choices)
+            current_distance = INCORRECT_DISTANCE_RATIO * (higher - lower)
+            value_used = random.choice(
+                [
+                    min((lower - current_distance), lower - 1),
+                    max((higher + current_distance), higher + 1),
+                ]
+            )
+            return value_used
 
     # detecting color and shade combos
     if all([choice in full_colorshade_list for choice in choices]):
@@ -223,17 +134,21 @@ def all_incorrect_from_template(template_code: str) -> list[str]:
     if len(found_ranges) == 0:
         return []
     if len(found_ranges) > MAX_REG_AMOUNT:
-        sampled = sorted(random.sample(range(len(found_ranges)), len(found_ranges)-MAX_REG_AMOUNT))
+        sampled = sorted(
+            random.sample(range(len(found_ranges)), len(found_ranges) - MAX_REG_AMOUNT)
+        )
         made_defaults_ranges = [found_ranges[i] for i in sampled]
         for reg in reversed(made_defaults_ranges):
-            template_code = get_default_for_reg(reg,template_code)
+            template_code = get_default_for_reg(reg, template_code)
     found_ranges = list(
-            re.finditer(
-                r"§(?:range\(([^,]+),([^,]+),([^)]+)\)|rangei\(([^,]+),([^)]+)\)|choice\((\[[^]]+\]),([^)]+)\))",
-                template_code,
-            )
-        )#recomputed_can be optimized, but not necessary
-    arrangements = create_arrangements(len(found_ranges))
+        re.finditer(
+            r"§(?:range\(([^,]+),([^,]+),([^)]+)\)|rangei\(([^,]+),([^)]+)\)|choice\((\[[^]]+\]),([^)]+)\))",
+            template_code,
+        )
+    )  # recomputed_can be optimized, but not necessary
+    arrangements = create_arrangements(
+        len(found_ranges), result_amount=-1, true_values_nb=4
+    )
     all_resulting_codes = []
     for incorrect_array in arrangements:
         current_code = template_code
@@ -243,7 +158,16 @@ def all_incorrect_from_template(template_code: str) -> list[str]:
             else:
                 current_code = get_default_for_reg(found_reg, current_code)
         all_resulting_codes.append(current_code)
-    return all_resulting_codes
+    # trying to paply random modifications
+    all_resulting_codes_modified = []
+    for code in all_resulting_codes:
+
+        new_modified_code = apply_random_modifications(code, 1, 1, 3)
+        if len(new_modified_code)>0:
+            all_resulting_codes_modified.append(new_modified_code[0])
+        else:
+            all_resulting_codes_modified.append(code)
+    return all_resulting_codes_modified
 
 
 def default_range(template_code):
@@ -267,7 +191,7 @@ def generate_all_incorrect_solutions(original_code: str, template_code: str):
     template_code = handle_def(template_code)[0]
     incorrect_templated_codes = all_incorrect_from_template(template_code)
     if len(incorrect_templated_codes) == 0:
-        incorrect_templated_codes = try_generate_incorect_code(original_code, 5)
+        incorrect_templated_codes = apply_random_modifications(original_code, 5)
     if len(incorrect_templated_codes) == 0:
         return [], True
     return [get_default(code) for code in incorrect_templated_codes], ignored
@@ -276,15 +200,15 @@ def generate_all_incorrect_solutions(original_code: str, template_code: str):
 from itertools import combinations
 
 
-def create_arrangements(
-    arr_size, result_amount: int = -1, true_values_nb: int = 2
-):
+def create_arrangements(arr_size, result_amount: int = -1, true_values_nb: int = 2):
 
     arrangements = []
+    true_values_nb = min(arr_size, true_values_nb)
 
-    for i, j in combinations(range(arr_size), true_values_nb):
+    for combination in combinations(range(arr_size), true_values_nb):
         arr = [0] * arr_size
-        arr[i] = arr[j] = 1
+        for i in combination:
+            arr[i] = 1
         arrangements.append(arr)
 
     if result_amount < 0:

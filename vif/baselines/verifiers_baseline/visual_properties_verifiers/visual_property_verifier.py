@@ -50,6 +50,13 @@ class VisualPropertiesVerifier(TexVerBaseline):
 
         super().__init__(*args, **kwargs)
 
+    def get_config_metadata(self):
+        return {
+            "name": "VisualPropertyVerifier",
+            "model": self.model,
+            "temperature": self.temperature,
+        }
+
     def get_properties(self, initial_image, instruction) -> list[str]:
         encoded_image = encode_image(initial_image)
 
