@@ -181,7 +181,7 @@ def get_incorrect_for_reg(found_reg: re.Match, code: str):
         current_distance = INCORRECT_DISTANCE_RATIO * (higher - lower)
         value_used = random.choice(
             [(lower - current_distance), (higher + current_distance)]
-        )  # TODO is that good?
+        )  # TODO is it okay to do random?
         return (
             code[: found_reg.start()]
             + (
@@ -235,7 +235,6 @@ def all_incorrect_from_template(template_code: str) -> list[str]:
         )#recomputed_can be optimized, but not necessary
     arrangements = create_arrangements(len(found_ranges))
     all_resulting_codes = []
-    # *2 for lower than lower range and higher than higher range
     for incorrect_array in arrangements:
         current_code = template_code
         for is_incorrect, found_reg in zip(incorrect_array, reversed(found_ranges)):
