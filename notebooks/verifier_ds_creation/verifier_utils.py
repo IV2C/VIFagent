@@ -6,6 +6,7 @@ import numpy as np
 from notebooks.verifier_ds_creation.invalid_variant_creation import (
     BW_COLORS,
     XCOLOR_COLOR_LIST,
+    XCOLOR_LIST,
     XCOLOR_SHADE_LIST,
     apply_random_modifications,
 )
@@ -25,11 +26,13 @@ INCORRECT_DISTANCE_RATIO = (
 )  # 4 tenth of the range of possible solution away from the lower and higher limits
 
 
-full_colorshade_list = (
-    {color + str(shade) for color in XCOLOR_COLOR_LIST for shade in XCOLOR_SHADE_LIST}
-    .union(XCOLOR_COLOR_LIST)
-    .union(BW_COLORS)
-)
+full_colorshade_list = {
+    color + str(shade) for color in XCOLOR_COLOR_LIST for shade in XCOLOR_SHADE_LIST
+}
+full_color_list = XCOLOR_COLOR_LIST
+
+all_color_list = full_colorshade_list.union(full_color_list)
+all_color_list_bw = all_color_list.union(BW_COLORS)
 
 
 def guess_invalid_choice(choices: list[str]):
@@ -55,14 +58,30 @@ def guess_invalid_choice(choices: list[str]):
             )
             return value_used
 
-    # detecting color and shade combos
-    if all([choice in full_colorshade_list for choice in choices]):
-        non_selected_colors = full_colorshade_list.difference(set(choices))
-        if len(non_selected_colors) > 0:
-            return random.choice(list(non_selected_colors))
-        else:
-            return None
+    valid_sets = [
+        full_colorshade_list,
+        full_color_list,
+        all_color_list,
+        all_color_list_bw,
+    ]
+    return pick_random_nonselected(choices, valid_sets)
+
+
+def pick_random_nonselected(choices, valid_sets):
+    def pick_from(valid_set):
+        if all(choice in valid_set for choice in choices):
+            non_selected = valid_set.difference(choices)
+            return random.choice(list(non_selected)) if non_selected else None
+        return None
+
+    for valid_set in valid_sets:
+        result = pick_from(valid_set)
+        if result is not None:
+            return result
     return None
+
+
+# usage
 
 
 def get_incorrect_for_reg(found_reg: re.Match, code: str):
@@ -163,7 +182,7 @@ def all_incorrect_from_template(template_code: str) -> list[str]:
     for code in all_resulting_codes:
 
         new_modified_code = apply_random_modifications(code, 1, 1, 3)
-        if len(new_modified_code)>0:
+        if len(new_modified_code) > 0:
             all_resulting_codes_modified.append(new_modified_code[0])
         else:
             all_resulting_codes_modified.append(code)
@@ -191,7 +210,7 @@ def generate_all_incorrect_solutions(original_code: str, template_code: str):
     template_code = handle_def(template_code)[0]
     incorrect_templated_codes = all_incorrect_from_template(template_code)
     if len(incorrect_templated_codes) == 0:
-        incorrect_templated_codes = apply_random_modifications(original_code, 5)
+        incorrect_templated_codes = apply_random_modifications(original_code, 5,max_attempts=50)
     if len(incorrect_templated_codes) == 0:
         return [], True
     return [get_default(code) for code in incorrect_templated_codes], ignored
