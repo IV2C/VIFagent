@@ -1,13 +1,5 @@
 from dataclasses import asdict, dataclass
-import re
-from vif.baselines.models import RegexException
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
-from openai import Client
-import os
-from google import genai
-from google.genai import types as genTypes
-from vif.falcon.oracle.guided_oracle.guided_code_oracle import OracleGuidedCodeModule
-from vif.utils.renderer.tex_renderer import TexRenderer
 
 
 @dataclass
@@ -16,34 +8,27 @@ class FalconVerifierMetadata:
 
 
 class FalconVerifier(TexVerBaseline):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        *args,
+        oracle_gen_model,
+        oracle_gen_model_temperature,
+        vision_model,
+        property_model,
+        property_model_temperature,
+        gclient,
+        oclient,
+        **kwargs,
+    ):
+        self.oracle_gen_model = oracle_gen_model
+        self.oracle_gen_model_temperature = oracle_gen_model_temperature
+        self.vision_model = vision_model
+        self.property_model = property_model
+        self.property_model_temperature = property_model_temperature
 
-        self.oracle_gen_model = "meta-llama/llama-4-maverick:free"
-        self.oracle_gen_model_temperature = 0.3
-        self.vision_model = "gemini-2.5-flash"
-        self.property_model = "mistralai/mistral-small-3.2-24b-instruct:free"
-        self.property_model_temperature = 0.3
+        self.gclient = gclient
 
-        self.gclient = genai.Client(
-            api_key=os.environ.get("GOOGLE_API_KEY"),
-            http_options=genTypes.HttpOptions(api_version="v1alpha"),
-        )
-
-        self.oclient = Client(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.environ.get("OPENROUTER_API_KEY"),
-        )
-
-        self.oracle_module = OracleGuidedCodeModule(
-            model=self.oracle_gen_model,
-            temperature=self.oracle_gen_model_temperature,
-            client=self.oclient,
-            visual_client=self.gclient,
-            visual_model=self.vision_model,
-            property_client=self.oclient,
-            property_model=self.property_model,
-            property_model_temperature=self.property_model_temperature,
-        )
+        self.oclient = oclient
 
         super().__init__(*args, **kwargs)
 

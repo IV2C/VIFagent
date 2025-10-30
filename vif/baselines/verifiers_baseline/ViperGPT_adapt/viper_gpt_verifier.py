@@ -16,9 +16,11 @@ def eval_code(code: str, initial_image, customized_image):
     exec(code, globals)
     return globals["execute_command"](initial_image, customized_image)
 
+
 @dataclass
 class ViperGPTMetadata:
-    generated_function:str
+    generated_function: str
+
 
 class ViperGPTVerifier(TexVerBaseline):
     def __init__(self, *args, model, client: Client, temperature, **kwargs):
@@ -28,12 +30,14 @@ class ViperGPTVerifier(TexVerBaseline):
         self.temperature = temperature
 
         super().__init__(*args, **kwargs)
+
     def get_config_metadata(self):
         return {
             "name": "ViperGPTVerifier",
             "model": self.model,
             "temperature": self.temperature,
         }
+
     def assess_customization(self, ver_eval_input):
         messages = [
             {
@@ -71,9 +75,9 @@ class ViperGPTVerifier(TexVerBaseline):
             ver_eval_input.initial_image,
             ver_eval_input.initial_solution_image,
         )
-        
+
         metadata = ViperGPTMetadata(generated_function)
         ver_eval_input.additional_metadata = asdict(metadata)
-        
+
         ver_eval_input.classified = condition
         return ver_eval_input
