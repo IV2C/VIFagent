@@ -28,7 +28,7 @@ Your goal is to verify, by using Python code, whether the instruction has been c
 Your final response must always contain the final answer in the format:
 \\boxed{True} or \\boxed{False}
 
-Return True if the instruction has been applied; False otherwise.
+Answer with True when the instruction is perfectly applied, False when it is not.
 """
 
 IMAGE_CODE_VERIFY_PROMPT: str = """
