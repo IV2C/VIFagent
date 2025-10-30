@@ -15,7 +15,6 @@ XCOLOR_COLOR_LIST = {
     "Red",
     "Pink",
     "Purple",
-    "Deep",
     "Purple",
     "Indigo",
     "Blue",
@@ -271,10 +270,6 @@ def apply_random_modifications(tikz_code: str, num_modifications=5, outputed_cod
         _swap_two_random_node_usages,
     ]
     random.shuffle(modification_functions)
-    modification_functions = random.sample(
-        modification_functions, len(modification_functions) - 1
-    )  # removing a random modification function to try to broader the set of modifications
-
     candidate_codes: list[float, str] = []
 
     attempt_number = 0
@@ -290,9 +285,9 @@ def apply_random_modifications(tikz_code: str, num_modifications=5, outputed_cod
                     break
 
         try:
-            # open(f"./.oui/{attempt_number}.tex", "w").write(current_code)
+            open(f"./.oui/{attempt_number}.tex", "w").write(current_code)
             image = renderer.from_string_to_image(current_code)
-            # image.save(f"./.oui/{attempt_number}.png")
+            image.save(f"./.oui/{attempt_number}.png")
             candidate_codes.append((image_sim(image, original_image), current_code))
             attempt_number += 1
         except TexRendererException as t:
