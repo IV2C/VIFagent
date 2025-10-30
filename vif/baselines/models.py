@@ -60,4 +60,4 @@ class VerEvaluation(BaseModel):
     errors: list[VerifierException]
     # Contains data specific to the approach(number of tool calls, code generation errors, etc)
     additional_metadata: dict
-    usage_metadata:dict[str,Any]= dict()#mapping between model config/usage and token usages
+    usage_metadata:dict[str,list[CompletionUsage]]= dict()#mapping between model config/usage and token usages

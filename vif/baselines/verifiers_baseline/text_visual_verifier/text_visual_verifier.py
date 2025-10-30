@@ -11,7 +11,7 @@ You will be given the initial code, the customized code, both images(correspondi
 Your response must always contain the final answer in the format:
 \\boxed{True} or \\boxed{False}
 
-Answer with True when the instruction is applied, False when it is not.
+Answer with True when the instruction is perfectly applied, False when it is not.
 """
 
 TEXT_IMAGE_VERIFY_PROMPT: str = """

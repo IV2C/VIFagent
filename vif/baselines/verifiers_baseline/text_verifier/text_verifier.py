@@ -10,7 +10,7 @@ You will be given the initial code, the customized code, and the instruction.
 Your response must always contain the final answer in the format:
 \\boxed{True} or \\boxed{False}
 
-Answer with True when the instruction is applied, False when it is not.
+Answer with True when the instruction is perfectly applied, False when it is not.
 """
 
 TEXT_VERIFY_PROMPT: str = """
@@ -36,12 +36,14 @@ class TextVerifier(TexVerBaseline):
         self.temperature = temperature
 
         super().__init__(*args, **kwargs)
+
     def get_config_metadata(self):
         return {
             "name": "TextVerifier",
             "model": self.model,
             "temperature": self.temperature,
         }
+
     def assess_customization(self, ver_eval_input):
 
         messages = (
@@ -75,9 +77,12 @@ class TextVerifier(TexVerBaseline):
         id_match = re.search(pattern, cnt)
 
         if not id_match:
-            raise RegexException(pattern=pattern,content=cnt) 
+            raise RegexException(pattern=pattern, content=cnt)
 
         condition = id_match.group(1) == "True"
         ver_eval_input.classified = condition
+
+        # token usage:
+        ver_eval_input.usage_metadata = {"Base": [response.usage]}
 
         return ver_eval_input

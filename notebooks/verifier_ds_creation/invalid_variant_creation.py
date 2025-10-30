@@ -285,9 +285,9 @@ def apply_random_modifications(tikz_code: str, num_modifications=5, outputed_cod
                     break
 
         try:
-            open(f"./.oui/{attempt_number}.tex", "w").write(current_code)
+            open(f"./.oui/last_attempt.tex", "w").write(current_code)
             image = renderer.from_string_to_image(current_code)
-            image.save(f"./.oui/{attempt_number}.png")
+            image.save(f"./.oui/last_attempt.png")
             candidate_codes.append((image_sim(image, original_image), current_code))
             attempt_number += 1
         except TexRendererException as t:
