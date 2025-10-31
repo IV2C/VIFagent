@@ -5,6 +5,7 @@ from typing import Any
 from loguru import logger
 from openai import Client
 
+from vif.baselines.models import RegexException
 from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
 import hashlib
@@ -15,8 +16,9 @@ from vif.prompts.oracle_prompts import (
     ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
     ORACLE_PROPERTY_USAGE_PROMPT,
 )
+from vif.prompts.property_check_prompt import PROPERTY_PROMPT
 from vif.utils.detection_utils import get_segmentation_masks
-from vif.utils.image_utils import encode_image
+from vif.utils.image_utils import concat_images_horizontally, encode_image
 
 from vif.falcon.oracle.guided_oracle.property_expression import visual_property
 from vif.falcon.oracle.guided_oracle.expressions import (
@@ -52,6 +54,7 @@ class OracleGuidedCodeModule(OracleModule):
         self.visual_model = visual_model
         self.segmentation_cache: dict[int, list[SegmentationMask]] = defaultdict(list)
         self.segmentation_usage: dict[str, str] = defaultdict(list)
+        self.property_usage: dict[str, str] = defaultdict(list)
         self.property_client = property_client
         self.property_model = property_model
         self.property_model_temperature = property_model_temperature
@@ -150,19 +153,19 @@ class OracleGuidedCodeModule(OracleModule):
             image: Image.Image,
         ) -> OracleResponse:
             self.segmentation_usage.clear()
+            self.property_usage.clear()
             result, feedbacks = expression.evaluate(
                 original_image=base_image,
                 custom_image=image,
                 segment_function=self.segments_from_features,
-                client=self.property_client,
-                model=self.property_model,
-                temperature=self.property_model_temperature,
+                check_property_function=self.eval_property,
             )
             return OracleResponse(
                 result,
                 feedbacks,
                 evaluation_code=oracle_code,
                 seg_token_usage=self.segmentation_usage,
+                prop_token_usage=self.property_usage
             )
 
         return oracle, res_usage
@@ -211,3 +214,55 @@ class OracleGuidedCodeModule(OracleModule):
         return (
             function.replace(" and ", " & ").replace(" or ", " | ").replace("not ", "~")
         )
+
+    def eval_property(
+        self,
+        original_image: Image.Image,
+        custom_image: Image.Image,
+        property_to_check: str,
+        negated: bool,
+    ) -> tuple[bool, list[str]]:
+
+        concat_image = concat_images_horizontally([original_image, custom_image])
+        encoded_image = encode_image(concat_image)
+        response = self.property_client.chat.completions.create(
+            model=self.property_model,
+            temperature=self.property_model_temperature,
+            messages=[
+                {"role": "system", "content": PROPERTY_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": property_to_check,
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{encoded_image}"
+                            },
+                        },
+                    ],
+                },
+            ],
+        )
+        cnt = response.choices[0].message.content
+        pattern = r"\\boxed{(True|False)}"
+        id_match = re.search(pattern, cnt)
+
+        if not id_match:
+            raise RegexException(pattern, cnt)
+
+        condition = id_match.group(1) == "True"
+        self.property_usage[property_to_check] = response.usage
+        if negated:
+            condition = not condition
+            feedback = (
+                f'The property "{property_to_check}" is applied, but shouldn\'t be.'
+            )
+        else:
+            feedback = (
+                f'The property "{property_to_check}" is not applied, but should be.'
+            )
+        return (condition, [feedback] if not condition else [])

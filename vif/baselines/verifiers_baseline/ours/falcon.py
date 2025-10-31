@@ -48,7 +48,7 @@ class FalconVerifier(TexVerBaseline):
             ver_eval_input.initial_instruction, ver_eval_input.initial_image
         )
         ver_eval_input.usage_metadata[
-            f"oracle_generation-{self.oracle_gen_model}_{self.oracle_gen_model_temperature}"
+            f"oracle_generation"
         ] = [metrics]
 
         or_response = oracle(ver_eval_input.initial_solution_image)
@@ -61,10 +61,12 @@ class FalconVerifier(TexVerBaseline):
         )
         ver_eval_input.additional_metadata = asdict(fal_metadata)
 
-        ver_eval_input.usage_metadata[f"segmentation-{self.vision_model}"] = (
+        ver_eval_input.usage_metadata[f"segmentation"] = (
             or_response.seg_token_usage
         )
-
+        ver_eval_input.usage_metadata[f"property"] = (
+            or_response.prop_token_usage
+        )
         # TODO add token usage for property
 
         return ver_eval_input
