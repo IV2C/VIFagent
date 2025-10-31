@@ -15,8 +15,8 @@ class RegexException(VerifierException):
 
 
 class RequestException(VerifierException):
-    """See here for more details https://platform.openai.com/docs/guides/error-codes/api-errors
-    """
+    """See here for more details https://platform.openai.com/docs/guides/error-codes/api-errors"""
+
     def __init__(self, messages: list, wrapped_exception: Any, *args):
         self.messages = messages
         self.wrapped_exception = wrapped_exception
@@ -60,4 +60,6 @@ class VerEvaluation(BaseModel):
     errors: list[VerifierException]
     # Contains data specific to the approach(number of tool calls, code generation errors, etc)
     additional_metadata: dict
-    usage_metadata:dict[str,list[CompletionUsage]]= dict()#mapping between model config/usage and token usages
+    usage_metadata: dict[str, list[CompletionUsage]] = (
+        dict()
+    )  # mapping between model config/usage and token usages
