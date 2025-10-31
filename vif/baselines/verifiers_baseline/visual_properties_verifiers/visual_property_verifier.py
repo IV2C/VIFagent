@@ -1,7 +1,7 @@
 import re
 from openai import Client
 from pydantic import BaseModel
-from vif.baselines.models import RegexException, RequestException
+from vif.baselines.models import CompletionUsage, RegexException, RequestException
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 from vif.utils.image_utils import concat_images_horizontally, encode_image
 
@@ -57,7 +57,9 @@ class VisualPropertiesVerifier(TexVerBaseline):
             "temperature": self.temperature,
         }
 
-    def get_properties(self, initial_image, instruction) -> list[str]:
+    def get_properties(
+        self, initial_image, instruction
+    ) -> tuple[list[str], CompletionUsage]:
         encoded_image = encode_image(initial_image)
 
         messages = (
@@ -100,7 +102,7 @@ class VisualPropertiesVerifier(TexVerBaseline):
             raise RegexException(pattern=pattern, content=cnt)
 
         properties = id_match.group(1).split("-")
-        return properties
+        return properties, response.usage
 
     def check_property_applied(self, initial_image, customized_image, property):
         concat_image = concat_images_horizontally([initial_image, customized_image])
@@ -147,14 +149,14 @@ class VisualPropertiesVerifier(TexVerBaseline):
             raise RegexException(pattern=pattern, content=cnt)
 
         condition = id_match.group(1) == "True"
-        return condition
+        return condition, response.usage
 
     def assess_customization(self, ver_eval_input):
-        properties = self.get_properties(
+        properties, property_usage = self.get_properties(
             ver_eval_input.initial_image, ver_eval_input.initial_instruction
         )
 
-        conditions = [
+        conditions_res = [
             self.check_property_applied(
                 ver_eval_input.initial_image,
                 ver_eval_input.initial_solution_image,
@@ -162,12 +164,17 @@ class VisualPropertiesVerifier(TexVerBaseline):
             )
             for property in properties
         ]
-
+        conditions = [cond for cond, usage in conditions_res]
+        property_check_usages = [usage for cond, usage in conditions_res]
         ver_eval_input.classified = all(conditions)
 
         prop_metadata = VisualPropertiesVerifierMetadata(
             {property: condition for property, condition in zip(properties, conditions)}
         )
+        ver_eval_input.usage_metadata = {
+            "property_gen": [property_usage],
+            "property_check": property_check_usages,
+        }
 
         ver_eval_input.additional_metadata = prop_metadata
         return ver_eval_input

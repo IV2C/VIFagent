@@ -1,3 +1,4 @@
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 import json
 import re
@@ -12,9 +13,10 @@ from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 
 
 def eval_code(code: str, initial_image, customized_image):
+    ImagePatch.token_usage = defaultdict(list)
     globals = {"ImagePatch": ImagePatch}
     exec(code, globals)
-    return globals["execute_command"](initial_image, customized_image)
+    return globals["execute_command"](initial_image, customized_image),ImagePatch.token_usage
 
 
 @dataclass
@@ -78,6 +80,7 @@ class ViperGPTVerifier(TexVerBaseline):
 
         metadata = ViperGPTMetadata(generated_function)
         ver_eval_input.additional_metadata = asdict(metadata)
+        ver_eval_input.usage_metadata = {"Base": [response.usage]}
 
         ver_eval_input.classified = condition
         return ver_eval_input

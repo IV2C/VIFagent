@@ -7,7 +7,7 @@ from dateutil import parser as dateparser
 from PIL import Image
 from torchvision import transforms
 from torchvision.ops import box_iou
-from typing import Union, List
+from typing import Any, Union, List
 from word2number import w2n
 
 from vif.baselines.verifiers_baseline.ViperGPT_adapt import (
@@ -60,6 +60,8 @@ class ImagePatch:
     crop(left: int, lower: int, right: int, upper: int)->ImagePatch
         Returns a new ImagePatch object containing a crop of the image at the given coordinates.
     """
+    token_usage:dict[str,list]
+
 
     def __init__(
         self,
@@ -152,14 +154,14 @@ class ImagePatch:
         List[ImagePatch]
             a list of ImagePatch objects matching object_name contained in the crop
         """
-        boxes: list[BoundingBox] = get_bounding_boxes(
+        boxes,token_usage= get_bounding_boxes(
             self.cropped_image, ViperGPTConfig.visual_client, object_name
         )
         all_coordinates = [(box.x0, box.y1, box.x1, box.y0) for box in boxes]
 
         if len(all_coordinates) == 0:
             return []
-
+        ImagePatch.token_usage["segmentation"] = token_usage
         return [self.crop(*coordinates) for coordinates in all_coordinates]
 
     def exists(self, object_name) -> bool:
@@ -284,7 +286,8 @@ class ImagePatch:
             model=ViperGPTConfig.qa_model,
             temperature=ViperGPTConfig.qa_temperature,
         )
-        return self.forward("blip", self.cropped_image, question, task="qa")
+        (ImagePatch.token_usage)["simple_query"].append(response.usage)
+        return response.choices[0].message.content
 
     def crop(self, left: int, lower: int, right: int, upper: int) -> ImagePatch:
         """Returns a new ImagePatch containing a crop of the original image at the given coordinates.
@@ -456,4 +459,5 @@ def llm_query(query):
         model=ViperGPTConfig.query_model,
         temperature=ViperGPTConfig.query_temperature,
     )
+    ImagePatch.token_usage["llm_query"].append(response.usage)
     return response.choices[0].message.content

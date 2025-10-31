@@ -14,8 +14,9 @@ class OracleResponse:
     condition: bool
     feedbacks: list[str]
     score_object: Any = None
-    evaluation_code:str = None
-    seg_token_usage:dict = None
+    evaluation_code: str = None
+    seg_token_usage: dict = None
+    prop_token_usage: dict = None
 
 
 class OracleModule(LLMmodule):
@@ -26,8 +27,7 @@ class OracleModule(LLMmodule):
             model=model,
         )
 
-
     @abstractmethod
     def get_oracle(
         self, instruction: str, base_image: Image.Image
-    ) -> tuple[Callable[[Image.Image], tuple[str, float, Any]],Any]: ...
+    ) -> tuple[Callable[[Image.Image], tuple[str, float, Any]], Any]: ...

@@ -171,12 +171,21 @@ def all_incorrect_from_template(template_code: str) -> list[str]:
     all_resulting_codes = []
     for incorrect_array in arrangements:
         current_code = template_code
+        current_incorrect_amount = 0
         for is_incorrect, found_reg in zip(incorrect_array, reversed(found_ranges)):
             if is_incorrect:
-                current_code = get_incorrect_for_reg(found_reg, current_code)
+                temp_current_code = get_incorrect_for_reg(found_reg, current_code)
+                if temp_current_code != None:
+                    current_incorrect_amount += 1
+                    current_code = temp_current_code
+                else:
+                    current_code = get_default_for_reg(found_reg, current_code)
             else:
                 current_code = get_default_for_reg(found_reg, current_code)
-        all_resulting_codes.append(current_code)
+        if current_incorrect_amount >= 3 or current_incorrect_amount == len(
+            found_ranges
+        ):
+            all_resulting_codes.append(current_code)
     # trying to paply random modifications
     all_resulting_codes_modified = []
     for code in all_resulting_codes:
@@ -210,7 +219,9 @@ def generate_all_incorrect_solutions(original_code: str, template_code: str):
     template_code = handle_def(template_code)[0]
     incorrect_templated_codes = all_incorrect_from_template(template_code)
     if len(incorrect_templated_codes) == 0:
-        incorrect_templated_codes = apply_random_modifications(original_code, 5,max_attempts=50)
+        incorrect_templated_codes = apply_random_modifications(
+            original_code, 5, max_attempts=50
+        )
     if len(incorrect_templated_codes) == 0:
         return [], True
     return [get_default(code) for code in incorrect_templated_codes], ignored

@@ -114,7 +114,7 @@ def get_bounding_boxes(
         log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
         break
 
-    return bounding_boxes
+    return (bounding_boxes,token_data)
 
 
 full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")

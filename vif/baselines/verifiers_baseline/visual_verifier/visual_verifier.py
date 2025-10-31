@@ -85,4 +85,6 @@ class VisualVerifier(TexVerBaseline):
 
         condition = id_match.group(1) == "True"
         ver_eval_input.classified = condition
+        ver_eval_input.usage_metadata = {"Base": [response.usage]}
+
         return ver_eval_input
