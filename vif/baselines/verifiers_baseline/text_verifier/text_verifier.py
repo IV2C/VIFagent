@@ -1,5 +1,6 @@
 import re
 from openai import Client
+from requests import RequestException
 from vif.baselines.models import RegexException
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 
@@ -46,38 +47,43 @@ class TextVerifier(TexVerBaseline):
 
     def assess_customization(self, ver_eval_input):
 
-        messages = (
-            [
-                {
-                    "role": "system",
-                    "content": TEXT_VERIFY_SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": TEXT_VERIFY_PROMPT.format(
-                                instruction=ver_eval_input.initial_instruction,
-                                initial_code=ver_eval_input.initial_code,
-                                customized_code=ver_eval_input.initial_solution,
-                            ),
-                        }
-                    ],
-                },
-            ],
-        )
-
-        response = self.client.chat.completions.create(
-            messages=messages, model=self.model, temperature=self.temperature
-        )
+        messages = [
+            {
+                "role": "system",
+                "content": TEXT_VERIFY_SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": TEXT_VERIFY_PROMPT.format(
+                            instruction=ver_eval_input.initial_instruction,
+                            initial_code=ver_eval_input.initial_code,
+                            customized_code=ver_eval_input.initial_solution,
+                        ),
+                    }
+                ],
+            },
+        ]
+        try:
+            response = self.client.chat.completions.create(
+                messages=messages, model=self.model, temperature=self.temperature
+            )
+        except Exception as e:
+            ver_eval_input.errors["base"].append(
+                RequestException(messages=messages, wrapped_exception=e).json_dump()
+            )
+            return ver_eval_input
 
         cnt = response.choices[0].message.content
+        ver_eval_input.additional_metadata["response_content"] = cnt
         pattern = r"\\boxed{(True|False)}"
         id_match = re.search(pattern, cnt)
 
         if not id_match:
-            raise RegexException(pattern=pattern, content=cnt)
+            ver_eval_input.errors["base"].append(RegexException(pattern=pattern, content=cnt).json_dump())
+            return ver_eval_input
 
         condition = id_match.group(1) == "True"
         ver_eval_input.classified = condition

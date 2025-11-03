@@ -43,45 +43,46 @@ class VisualVerifier(TexVerBaseline):
         )
         encoded_image = encode_image(concat_image)
 
-        messages = (
-            [
-                {
-                    "role": "system",
-                    "content": IMAGE_VERIFY_SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": TEXT_IMAGE_VERIFY_PROMPT.format(
-                                instruction=ver_eval_input.initial_instruction
-                            ),
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{encoded_image}"
-                            },
-                        },
-                    ],
-                },
-            ],
-        )
+        messages = [
+            {
+                "role": "system",
+                "content": IMAGE_VERIFY_SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": TEXT_IMAGE_VERIFY_PROMPT.format(
+                            instruction=ver_eval_input.initial_instruction
+                        ),
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{encoded_image}"},
+                    },
+                ],
+            },
+        ]
 
         try:
             response = self.client.chat.completions.create(
                 messages=messages, model=self.model, temperature=self.temperature
             )
         except Exception as e:
-            raise RequestException(messages=messages, wrapped_exception=e)
+            ver_eval_input.errors["base"].append(
+                RequestException(messages=messages, wrapped_exception=e).json_dump()
+            )
+            return ver_eval_input
 
         cnt = response.choices[0].message.content
+        ver_eval_input.additional_metadata["response_content"] = cnt
         pattern = r"\\boxed{(True|False)}"
         id_match = re.search(pattern, cnt)
 
         if not id_match:
-            raise RegexException(pattern=pattern, content=cnt)
+            ver_eval_input.errors["base"].append(RegexException(pattern=pattern, content=cnt).json_dump())
+            return ver_eval_input
 
         condition = id_match.group(1) == "True"
         ver_eval_input.classified = condition

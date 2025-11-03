@@ -1,7 +1,12 @@
 import re
 from openai import Client
 from pydantic import BaseModel
-from vif.baselines.models import CompletionUsage, RegexException, RequestException
+from vif.baselines.models import (
+    CompletionUsage,
+    RegexException,
+    RequestException,
+    VerifierException,
+)
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 from vif.utils.image_utils import concat_images_horizontally, encode_image
 
@@ -9,13 +14,14 @@ GET_PROPERTIES_SYSTEM_PROMPT: str = """
 You are a verification agent. You will be given an instruction and an original image.
 Your task is to list the properties that must be applied to the image to ensure that the requested customization is correctly made.
 
-Your answer must always end with the following format:
+Your answer must always end with the exact following format:
+
 Properties:
 - p1
 - p2
 ...
 
-Each property must be an open-ended string of reasonable length on a single line, that describes a required visual or structural change.
+Each property must be a small open-ended string of reasonable length on a single line, that describes a required visual or structural change.
 """
 
 GET_PROPERTIES_PROMPT: str = """
@@ -38,7 +44,8 @@ Property to verify:
 
 
 class VisualPropertiesVerifierMetadata(BaseModel):
-    properties_eval: dict[str, bool]
+    properties_eval: list[bool] = None
+    properties: list[str] = None
 
 
 class VisualPropertiesVerifier(TexVerBaseline):
@@ -62,31 +69,25 @@ class VisualPropertiesVerifier(TexVerBaseline):
     ) -> tuple[list[str], CompletionUsage]:
         encoded_image = encode_image(initial_image)
 
-        messages = (
-            [
-                {
-                    "role": "system",
-                    "content": GET_PROPERTIES_SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": GET_PROPERTIES_PROMPT.format(
-                                instruction=instruction
-                            ),
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{encoded_image}"
-                            },
-                        },
-                    ],
-                },
-            ],
-        )
+        messages = [
+            {
+                "role": "system",
+                "content": GET_PROPERTIES_SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": GET_PROPERTIES_PROMPT.format(instruction=instruction),
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{encoded_image}"},
+                    },
+                ],
+            },
+        ]
         try:
             response = self.client.chat.completions.create(
                 messages=messages, model=self.model, temperature=self.temperature
@@ -108,31 +109,25 @@ class VisualPropertiesVerifier(TexVerBaseline):
         concat_image = concat_images_horizontally([initial_image, customized_image])
         encoded_image = encode_image(concat_image)
 
-        messages = (
-            [
-                {
-                    "role": "system",
-                    "content": PROPERTY_EVALUATION_SYSTEM_PROMPT,
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": PROPERTY_EVALUATION_PROMPT.format(
-                                property=property
-                            ),
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{encoded_image}"
-                            },
-                        },
-                    ],
-                },
-            ],
-        )
+        messages = [
+            {
+                "role": "system",
+                "content": PROPERTY_EVALUATION_SYSTEM_PROMPT,
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": PROPERTY_EVALUATION_PROMPT.format(property=property),
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{encoded_image}"},
+                    },
+                ],
+            },
+        ]
 
         try:
             response = self.client.chat.completions.create(
@@ -152,25 +147,34 @@ class VisualPropertiesVerifier(TexVerBaseline):
         return condition, response.usage
 
     def assess_customization(self, ver_eval_input):
-        properties, property_usage = self.get_properties(
-            ver_eval_input.initial_image, ver_eval_input.initial_instruction
-        )
-
-        conditions_res = [
-            self.check_property_applied(
-                ver_eval_input.initial_image,
-                ver_eval_input.initial_solution_image,
-                property,
+        prop_metadata = VisualPropertiesVerifierMetadata()
+        try:
+            properties, property_usage = self.get_properties(
+                ver_eval_input.initial_image, ver_eval_input.initial_instruction
             )
-            for property in properties
-        ]
-        conditions = [cond for cond, usage in conditions_res]
-        property_check_usages = [usage for cond, usage in conditions_res]
+        except VerifierException as e:
+            ver_eval_input.errors["property_generation"].append(e.json_dump())
+            return ver_eval_input
+        prop_metadata.properties = properties
+        try:
+            conditions_res = [
+                self.check_property_applied(
+                    ver_eval_input.initial_image,
+                    ver_eval_input.initial_solution_image,
+                    property,
+                )
+                for property in properties
+            ]
+        except VerifierException as e:
+            ver_eval_input.errors["property_check"].append(e.json_dump())
+            return ver_eval_input
+
+        conditions = [cond for cond, _ in conditions_res]
+        property_check_usages = [usage for _, usage in conditions_res]
         ver_eval_input.classified = all(conditions)
 
-        prop_metadata = VisualPropertiesVerifierMetadata(
-            {property: condition for property, condition in zip(properties, conditions)}
-        )
+        prop_metadata.properties_eval = [conditions]
+
         ver_eval_input.usage_metadata = {
             "property_gen": [property_usage],
             "property_check": property_check_usages,

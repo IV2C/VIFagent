@@ -1,10 +1,21 @@
 from collections import defaultdict
+import json
 from typing import Any
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from PIL.Image import Image
 
 
-class VerifierException(Exception): ...
+class VerifierException(Exception):
+    def json_dump(self):
+        def default_serializer(obj):
+            try:
+                return str(obj)
+            except Exception:
+                return f"<unserializable {type(obj).__name__}>"
+
+        data = dict(self.__dict__)
+        data["name"] = type(self).__name__
+        return json.dumps(data, ensure_ascii=False, default=default_serializer)
 
 
 class RegexException(VerifierException):
@@ -15,13 +26,18 @@ class RegexException(VerifierException):
 
 
 class RequestException(VerifierException):
-    """See here for more details https://platform.openai.com/docs/guides/error-codes/api-errors"""
 
     def __init__(self, messages: list, wrapped_exception: Any, *args):
         self.messages = messages
         self.wrapped_exception = wrapped_exception
         super().__init__(*args)
 
+class CodeExecException(VerifierException):
+
+    def __init__(self, code: str, wrapped_exception: Any, *args):
+        self.code = code
+        self.wrapped_exception = wrapped_exception
+        super().__init__(*args)
 
 class CompletionUsage(BaseModel):
     completion_tokens: int
@@ -38,7 +54,7 @@ class ChatMessage(BaseModel):
 
 
 class VerEvaluation(BaseModel):
-
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     #####Set before the call#####
     id: str
     # config
@@ -57,9 +73,9 @@ class VerEvaluation(BaseModel):
     # if failing
     failed: bool = False
     retries: int = 0
-    errors: list[VerifierException]
+    errors: dict[str,list[Any]] = defaultdict(list)
     # Contains data specific to the approach(number of tool calls, code generation errors, etc)
-    additional_metadata: dict
+    additional_metadata: dict = {}
     usage_metadata: dict[str, list[CompletionUsage]] = (
         dict()
     )  # mapping between model config/usage and token usages
