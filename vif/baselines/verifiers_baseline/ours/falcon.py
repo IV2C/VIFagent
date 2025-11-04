@@ -1,5 +1,6 @@
 from dataclasses import asdict, dataclass
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
+from vif.falcon.oracle.guided_oracle.guided_code_oracle import OracleGuidedCodeModule
 
 
 @dataclass
@@ -30,6 +31,17 @@ class FalconVerifier(TexVerBaseline):
 
         self.oclient = oclient
 
+        self.oracle_module:OracleGuidedCodeModule = OracleGuidedCodeModule(
+            client=oclient,
+            model=oracle_gen_model,
+            temperature=oracle_gen_model_temperature,
+            visual_client=oclient,
+            visual_model=vision_model,
+            property_client=oclient,
+            property_model=property_model,
+            property_model_temperature=property_model_temperature
+        )
+        
         super().__init__(*args, **kwargs)
 
     def get_config_metadata(self):
@@ -67,6 +79,5 @@ class FalconVerifier(TexVerBaseline):
         ver_eval_input.usage_metadata[f"property"] = (
             or_response.prop_token_usage
         )
-        # TODO add token usage for property
 
         return ver_eval_input
