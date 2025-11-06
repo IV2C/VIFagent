@@ -691,10 +691,10 @@ def overlay_mask_on_img(
     colored_mask_layer_np = np.zeros((height, width, 4), dtype=np.uint8)
 
     # Mask has values between 0 and 255, threshold at 127 to get binary mask.
-    mask_np_logical = mask > 127
+    #mask_np_logical = mask > 127
 
     # Apply the overlay color RGBA tuple where the mask is True
-    colored_mask_layer_np[mask_np_logical] = overlay_color_rgba
+    colored_mask_layer_np[mask] = overlay_color_rgba
 
     # Convert the NumPy layer back to a PIL Image
     colored_mask_layer_pil = Image.fromarray(colored_mask_layer_np, "RGBA")

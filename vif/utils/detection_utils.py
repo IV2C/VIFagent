@@ -17,7 +17,7 @@ from vif.models.detection import BoundingBox, SegmentationMask
 from vif.models.exceptions import InvalidMasksError, JsonFormatError, ParsingError
 from vif.prompts.identification_prompts import DETECTION_PROMPT, SEGMENTATION_PROMPT
 from vif.utils.caching import CachedRequest, instantiate_cache
-from vif.utils.image_utils import  encode_image, nmse
+from vif.utils.image_utils import encode_image, nmse
 
 from google import genai
 from google.genai import types as genTypes
@@ -114,7 +114,7 @@ def get_bounding_boxes(
         log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
         break
 
-    return (bounding_boxes,token_data)
+    return (bounding_boxes, token_data)
 
 
 full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")
@@ -128,7 +128,12 @@ def key_function(func, *args, **kwargs):
 
     input_hash = hashlib.sha1(
         str(
-            (hashlib.sha1(image.tobytes()).hexdigest(), features, model, func_name)
+            (
+                hashlib.sha1(image.tobytes()).hexdigest(),
+                features,
+                model,
+                func_name,
+            )
         ).encode("utf8")
     ).hexdigest()
     return input_hash
@@ -136,7 +141,7 @@ def key_function(func, *args, **kwargs):
 
 def get_mask_seg_logbprob(response):
     """
-    Print log probabilities for each token in the response
+    get log probabilities for each values in the segm mask response
     """
 
     probs = []
@@ -204,6 +209,7 @@ def get_segmentation_masks(
     client: genai.Client,
     features,
     model,
+    enable_logprob: bool = True,
 ) -> tuple[list[SegmentationMask], list]:
     encoded_image = encode_image(image=image)
 
@@ -235,8 +241,14 @@ def get_segmentation_masks(
             config=genTypes.GenerateContentConfig(
                 temperature=0.5,
                 thinking_config=genTypes.ThinkingConfig(thinking_budget=0),
-                response_logprobs=True,
-                logprobs=1,
+                **(
+                    {
+                        "response_logprobs": True,
+                        "logprobs": 1,
+                    }
+                    if enable_logprob
+                    else {}
+                ),
             ),
         )
 
@@ -298,19 +310,21 @@ def get_segmentation_masks(
         log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
         break
 
-    log_probs = get_mask_seg_logbprob(response)
+    if enable_logprob:
 
-    for seg_mask in seg_masks:
-        seg_mask.box_prob = next(
-            log_prob["box_prob"]
-            for log_prob in log_probs
-            if log_prob["label"] == seg_mask.label
-        )
-        seg_mask.seg_prob = next(
-            log_prob["seg_prob"]
-            for log_prob in log_probs
-            if log_prob["label"] == seg_mask.label
-        )
+        log_probs = get_mask_seg_logbprob(response)
+
+        for seg_mask in seg_masks:
+            seg_mask.box_prob = next(
+                log_prob["box_prob"]
+                for log_prob in log_probs
+                if log_prob["label"] == seg_mask.label
+            )
+            seg_mask.seg_prob = next(
+                log_prob["seg_prob"]
+                for log_prob in log_probs
+                if log_prob["label"] == seg_mask.label
+            )
 
     return (seg_masks, token_data)
 

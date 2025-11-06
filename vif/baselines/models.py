@@ -79,3 +79,4 @@ class VerEvaluation(BaseModel):
     usage_metadata: dict[str, list[CompletionUsage]] = (
         dict()
     )  # mapping between model config/usage and token usages
+    theoretical_perfect_image:Image = None
