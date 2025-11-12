@@ -32,12 +32,14 @@ class RequestException(VerifierException):
         self.wrapped_exception = wrapped_exception
         super().__init__(*args)
 
+
 class CodeExecException(VerifierException):
 
     def __init__(self, code: str, wrapped_exception: Any, *args):
         self.code = code
         self.wrapped_exception = wrapped_exception
         super().__init__(*args)
+
 
 class CompletionUsage(BaseModel):
     completion_tokens: int
@@ -73,10 +75,10 @@ class VerEvaluation(BaseModel):
     # if failing
     failed: bool = False
     retries: int = 0
-    errors: dict[str,list[Any]] = defaultdict(list)
+    errors: dict[str, list[str]] = {}  # PROBELM TEHRE
     # Contains data specific to the approach(number of tool calls, code generation errors, etc)
     additional_metadata: dict = {}
     usage_metadata: dict[str, list[CompletionUsage]] = (
         dict()
     )  # mapping between model config/usage and token usages
-    theoretical_perfect_image:Image = None
+    theoretical_perfect_image: Image = None

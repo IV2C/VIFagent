@@ -5,6 +5,7 @@ from .ViperGPT_adapt.viper_gpt_verifier import ViperGPTVerifier
 from .visual_properties_verifiers.visual_property_verifier import VisualPropertiesVerifier
 from .visual_verifier.visual_verifier import VisualVerifier
 from .visual_verifier_code.visual_verifier_code import VisualCodeVerifier
+from .pico_banana_verifier.pico_banana_verifier import PicoBananaVerifier
 
 __all__ = [
     "FalconVerifier",
@@ -14,4 +15,5 @@ __all__ = [
     "VisualPropertiesVerifier",
     "VisualVerifier",
     "VisualCodeVerifier",
+    "PicoBananaVerifier"
 ]

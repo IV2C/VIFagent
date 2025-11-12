@@ -1,7 +1,6 @@
 import re
 from openai import Client
-from requests import RequestException
-from vif.baselines.models import RegexException
+from vif.baselines.models import RegexException,RequestException
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 
 TEXT_VERIFY_SYSTEM_PROMPT: str = """
@@ -46,7 +45,7 @@ class TextVerifier(TexVerBaseline):
         }
 
     def assess_customization(self, ver_eval_input):
-
+        ver_eval_input.errors["base"] =[]
         messages = [
             {
                 "role": "system",

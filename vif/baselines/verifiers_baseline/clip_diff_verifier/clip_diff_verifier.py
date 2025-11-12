@@ -13,7 +13,7 @@ class ClipSimVerifier(TexVerBaseline):
         self._clip_preprocess = preprocess
         self._clip_tokenizer = open_clip.get_tokenizer("ViT-B-32")
 
-        self.threshold = 0.99
+        self.threshold = 0.98
         super().__init__(*args, **kwargs)
     def get_config_metadata(self):
         return {

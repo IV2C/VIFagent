@@ -147,6 +147,10 @@ class VisualPropertiesVerifier(TexVerBaseline):
         return condition, response.usage
 
     def assess_customization(self, ver_eval_input):
+        ver_eval_input.errors["property_generation"] =[]
+        ver_eval_input.errors["property_check"] =[]
+
+        
         prop_metadata = VisualPropertiesVerifierMetadata()
         try:
             properties, property_usage = self.get_properties(

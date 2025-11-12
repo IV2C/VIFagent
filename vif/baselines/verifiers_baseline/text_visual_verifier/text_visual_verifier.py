@@ -46,6 +46,7 @@ class TextVisualVerifier(TexVerBaseline):
         }
 
     def assess_customization(self, ver_eval_input):
+        ver_eval_input.errors["base"] =[]
 
         concat_image = concat_images_horizontally(
             [ver_eval_input.initial_image, ver_eval_input.initial_solution_image]
