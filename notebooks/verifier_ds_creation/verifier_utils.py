@@ -1,6 +1,7 @@
 import math
 import random
 import re
+from typing import Callable
 import numpy as np
 
 from notebooks.verifier_ds_creation.invalid_variant_creation import (
@@ -245,3 +246,35 @@ def create_arrangements(arr_size, result_amount: int = -1, true_values_nb: int =
         return arrangements
     else:
         return random.sample(arrangements, result_amount)
+
+
+import open_clip
+import torch
+from PIL import Image
+
+
+def get_clip_compare() -> Callable[[Image.Image, Image.Image], float]:
+    model, _, preprocess = open_clip.create_model_and_transforms(
+        "ViT-B-32", pretrained="laion2b_s34b_b79k"
+    )
+    _clip_model = model.to("cpu").eval()
+    _clip_preprocess = preprocess
+    # _clip_tokenizer = open_clip.get_tokenizer("ViT-B-32")
+
+    def get_clip_sim(perfect_image, wrong_image):
+        perfect = _clip_preprocess(perfect_image).unsqueeze(0)
+        solution = _clip_preprocess(wrong_image).unsqueeze(0)
+
+        with torch.no_grad(), torch.autocast("cuda"):
+            perfect_image_features = _clip_model.encode_image(perfect)
+            solution_image_features = _clip_model.encode_image(solution)
+            perfect_image_features /= perfect_image_features.norm(dim=-1, keepdim=True)
+            solution_image_features /= solution_image_features.norm(
+                dim=-1, keepdim=True
+            )
+
+            similarity = (solution_image_features @ perfect_image_features.T).squeeze()
+
+        return similarity
+
+    return get_clip_sim
