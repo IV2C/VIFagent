@@ -42,6 +42,8 @@ class BoundingBox:
     y1: int  # in [0..height - 1]
     x1: int  # in [0..width - 1]
     label: str
+    box_prob:float= None
+    
 
 
 class dataclassJSONEncoder(json.JSONEncoder):

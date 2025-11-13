@@ -10,7 +10,7 @@ from PIL import Image
 import numpy as np
 import open_clip
 
-from vif.models.detection import SegmentationMask
+from vif.models.detection import BoundingBox, SegmentationMask
 from vif.utils.image_utils import (
     compute_mask_IoU,
     crop_image_with_box,
@@ -135,6 +135,7 @@ class OracleCondition(OracleExpression):
         original_image: Image.Image,
         custom_image: Image.Image,
         segment_function: Callable[[list[str], Image.Image], list[SegmentationMask]],
+        box_function: Callable[[list[str], Image.Image], list[BoundingBox]],
     ) -> tuple[bool, list[str]]:
         """evaluates the condition
 
@@ -196,11 +197,10 @@ class present(OracleCondition):
     def __invert__(self):
         return removed(self.feature)
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        segments = segment_function([self.feature], custom_image)
-        targeted_seg = get_seg_for_feature(self.feature, segments)
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        boxes = box_function([self.feature], custom_image)
 
-        condition = targeted_seg != None and targeted_seg.box_prob >= 0.6
+        condition = any(box != None and box.box_prob >= 0.6 for box in boxes)
         return (
             condition,
             (
@@ -218,11 +218,10 @@ class removed(OracleCondition):
     def __invert__(self):
         return present(self.feature)
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        segments = segment_function([self.feature], custom_image)
-        targeted_seg = get_seg_for_feature(self.feature, segments)
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        boxes = box_function([self.feature], custom_image)
 
-        condition = targeted_seg == None or targeted_seg.box_prob < 0.6
+        condition = all(box != None and box.box_prob < 0.6 for box in boxes)
 
         return (
             condition,
@@ -254,22 +253,58 @@ class Axis(str, Enum):
     vertical = "vertical"
 
 
-def get_seg_for_feature(
-    feature: str, features: list[SegmentationMask]
-) -> SegmentationMask:
-    return next((seg for seg in features if seg.label == feature), None)
-
-
 def distance(coordA: tuple[int, int], coordB: tuple[int, int]):
     return (abs(coordB[0] - coordA[0]), abs(coordB[1] - coordA[1]))
 
 
-def get_box_center(box: SegmentationMask):
+def get_box_center(box: BoundingBox):
     center = lambda b, a: a + (b - a) / 2
     return (
         center(box.x1, box.x0),
         center(box.y1, box.y0),
     )
+
+
+def get_corresponding_features_detections(
+    featuresA: list[BoundingBox | SegmentationMask],
+    featuresB: list[BoundingBox | SegmentationMask],
+):
+    """Uses a clip model to compute the similarities between each labels, and make them correspond between each feature list"""
+    a_labels = [f.label for f in featuresA]
+    b_labels = [f.label for f in featuresB]
+
+    if len(featuresA) > len(featuresB):
+        tmp = b_labels
+        b_labels = a_labels
+        a_labels = tmp
+
+    clip_encoded_a_labels = clip_model.encode_text(clip_tokenizer(a_labels))
+    clip_encoded_b_labels = clip_model.encode_text(clip_tokenizer(b_labels))
+    with torch.no_grad(), torch.autocast("cuda"):
+        text_sims = clip_encoded_a_labels @ clip_encoded_b_labels.T
+
+    text_sims = sorted(zip(text_sims, a_labels), key=lambda d: max(d[0]), reverse=True)
+    label_correspondance = {}
+    used_simlabel_indexes = []
+    b_labels = np.array(b_labels)
+
+    for sims, alabel in text_sims:
+        m_sims = sims
+        if len(used_simlabel_indexes) != 0:
+            mask = torch.ones(sims.size(0), dtype=torch.bool)
+            mask[used_simlabel_indexes] = False
+            m_sims = sims[mask]
+            if len(m_sims) == 0:
+                break
+            b_labels = np.delete(b_labels, used_simlabel_indexes)
+
+        index_max = torch.argmax(m_sims)
+        label_correspondance[alabel] = b_labels[index_max]
+        used_simlabel_indexes.append(index_max.item())
+
+    if len(featuresA) > len(featuresB):
+        return {v: k for k, v in label_correspondance.items()}
+    return label_correspondance
 
 
 ############## ORACLES #############
@@ -294,38 +329,38 @@ class placement(OracleCondition):
 
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        box_featA = get_seg_for_feature(
-            self.feature, segment_function([self.feature], custom_image)
-        )
-        box_featB = get_seg_for_feature(
-            self.other_feature, segment_function([self.feature], custom_image)
-        )
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        boxes_featA = box_function([self.feature], custom_image)
+        boxes_featB = box_function([self.other_feature], custom_image)
 
-        center_boxA = get_box_center(box_featA)
-        center_boxB = get_box_center(box_featB)
+        centers_boxA = [get_box_center(box_featA) for box_featA in boxes_featA]
+        centers_boxB = [get_box_center(box_featB) for box_featB in boxes_featB]
 
         direction_eval_map = {
             Direction.left: (
                 lambda m1, m2: m1[0] < m2[0],
-                f"The feature {self.feature} is not on the left of the feature {self.other_feature}",
+                f"The feature(s) {self.feature} is not on the left of the feature {self.other_feature}",
             ),
             Direction.right: (
                 lambda m1, m2: m1[0] > m2[0],
-                f"The feature {self.feature} is not on the right of the feature {self.other_feature}",
+                f"The feature(s) {self.feature} is not on the right of the feature {self.other_feature}",
             ),
             Direction.over: (
                 lambda m1, m2: m1[1] < m2[1],
-                f"The feature {self.feature} is not above the feature {self.other_feature}",
+                f"The feature(s) {self.feature} is not above the feature {self.other_feature}",
             ),
             Direction.under: (
                 lambda m1, m2: m1[1] > m2[1],
-                f"The feature {self.feature} is not under the feature {self.other_feature}",
+                f"The feature(s) {self.feature} is not under the feature {self.other_feature}",
             ),
         }
 
         condition_func, feedback = direction_eval_map[self.direction]
-        condition = condition_func(center_boxA, center_boxB)
+        condition = all(
+            condition_func(center_boxA, center_boxB)
+            for center_boxA in centers_boxA
+            for center_boxB in centers_boxB
+        )
 
         return (condition, [feedback] if not condition else [])
 
@@ -342,40 +377,59 @@ class position(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        original_box_featA = get_seg_for_feature(
-            self.feature, segment_function([self.feature], original_image)
-        )
-        original_box_featB = get_seg_for_feature(
-            self.other_feature, segment_function([self.feature], original_image)
-        )
-        custom_box_featA = get_seg_for_feature(
-            self.feature, segment_function([self.feature], custom_image)
-        )
-        custom_box_featB = get_seg_for_feature(
-            self.other_feature, segment_function([self.feature], custom_image)
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        original_boxes_featA = box_function(self.feature, original_image)
+
+        original_box_featB = box_function(self.other_feature, original_image)[0]
+
+        custom_boxes_featA = box_function(self.feature, custom_image)
+        custom_box_featB = box_function(self.other_feature, custom_image)[0]
+
+        # keeping only the A features with the most similar names between original and modified
+        feature_correspondance = get_corresponding_features_detections(
+            original_boxes_featA, custom_boxes_featA
         )
 
-        center_ori_boxA = get_box_center(original_box_featA)
+        box_mapping = [
+            (
+                [boxA for boxA in original_boxes_featA if boxA.label == key_label][0],
+                [boxA for boxA in custom_boxes_featA if boxA.label == value_label][0],
+            )
+            for key_label, value_label in feature_correspondance.items()
+        ]
+
+        centers_mapping = [
+            (get_box_center(original_box), get_box_center(custom_box))
+            for original_box, custom_box in box_mapping
+        ]
         center_ori_boxB = get_box_center(original_box_featB)
-        center_custom_boxA = get_box_center(custom_box_featA)
         center_custom_boxB = get_box_center(custom_box_featB)
 
-        original_distance = distance(center_ori_boxA, center_ori_boxB)
-        custom_distance = distance(center_custom_boxA, center_custom_boxB)
+        original_distances = []
+        custom_distances = []
+
+        for center_original_box, center_custom_box in centers_mapping:
+            original_distances.append(distance(center_original_box, center_ori_boxB))
+            custom_distances.append(distance(center_custom_box, center_custom_boxB))
 
         axis_eval_map = {
             Axis.horizontal: self.horizontal_oracle,
             Axis.vertical: self.vertical_oracle,
         }
-        condition, feedback = axis_eval_map[self.axis](
-            original_distance, custom_distance
-        )
+        condition_feedback = [
+            axis_eval_map[self.axis](original_distance, custom_distance,feat_name)
+            for original_distance, custom_distance,(_,feat_name) in zip(
+                original_distances, custom_distances,feature_correspondance.items()
+            )
+        ]
+        
+        condition = all(condition for condition,_ in condition_feedback)
+        feedbacks = [feedback for condition,feedback in condition_feedback if not condition]
 
-        return (condition, [feedback] if not condition else [])
+        return (condition, feedbacks if not condition else [])
 
     def horizontal_oracle(
-        self, d1: tuple[int, int], d2: tuple[int, int]
+        self, d1: tuple[int, int], d2: tuple[int, int],feat_name
     ) -> tuple[bool, str]:
         expected_distance = self.ratio * d1[0]
         condition = (
@@ -384,14 +438,14 @@ class position(OracleCondition):
             <= expected_distance + 0.1 * expected_distance
         )
         if self.negated:
-            feedback = f"The horizontal distance between {self.feature} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
+            feedback = f"The horizontal distance between {feat_name} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
             return (not condition, feedback)
 
-        feedback = f"The horizontal distance between {self.feature} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
+        feedback = f"The horizontal distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
         return (condition, feedback)
 
     def vertical_oracle(
-        self, d1: tuple[int, int], d2: tuple[int, int]
+        self, d1: tuple[int, int], d2: tuple[int, int],feat_name
     ) -> tuple[bool, str]:
         expected_distance = self.ratio * d1[1]
         condition = (
@@ -400,9 +454,9 @@ class position(OracleCondition):
             <= expected_distance + 0.1 * expected_distance
         )
         if self.negated:
-            feedback = f"The vertical distance between {self.feature} and {self.other_feature} is {d2[1]} which is too close to {expected_distance}."
+            feedback = f"The vertical distance between {feat_name} and {self.other_feature} is {d2[1]} which is too close to {expected_distance}."
             return (not condition, feedback)
-        feedback = f"The vertical distance between {self.feature} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[1]}."
+        feedback = f"The vertical distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[1]}."
         return (condition, feedback)
 
 
@@ -416,7 +470,7 @@ class angle(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
         ori_seg = get_seg_for_feature(
             self.feature, segment_function([self.feature], original_image)
         )
@@ -488,7 +542,7 @@ class color(OracleCondition):
             feat /= feat.norm(dim=-1, keepdim=True)
         return feat
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
         cust_features = get_seg_for_feature(
             self.feature, segment_function([self.feature], custom_image)
         )
@@ -534,12 +588,12 @@ class size(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        cust_features = get_seg_for_feature(
-            self.feature, segment_function([self.feature], custom_image)
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        cust_features = get_box_for_feature(
+            self.feature, box_function([self.feature], custom_image)
         )
-        ori_features = get_seg_for_feature(
-            self.feature, segment_function([self.feature], original_image)
+        ori_features = get_box_for_feature(
+            self.feature, box_function([self.feature], original_image)
         )
 
         x_ratio = (cust_features.x1 - cust_features.x0) / (
@@ -610,7 +664,7 @@ class shape(OracleCondition):
             feat /= feat.norm(dim=-1, keepdim=True)
         return feat
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
         cust_features = get_seg_for_feature(
             self.feature, segment_function([self.feature], custom_image)
         )
@@ -649,7 +703,7 @@ class within(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
         custom_box_featA = get_seg_for_feature(
             self.feature, segment_function([self.feature], custom_image)
         )
@@ -682,7 +736,7 @@ class mirrored(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
         ori_seg = get_seg_for_feature(
             self.feature, segment_function([self.feature], original_image)
         )
@@ -733,12 +787,12 @@ class aligned(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function):
-        custom_box_featA = get_seg_for_feature(
-            self.feature, segment_function([self.feature], custom_image)
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        custom_box_featA = get_box_for_feature(
+            self.feature, box_function([self.feature], custom_image)
         )
-        custom_box_featB = get_seg_for_feature(
-            self.other_feature, segment_function([self.feature], custom_image)
+        custom_box_featB = get_box_for_feature(
+            self.other_feature, box_function([self.feature], custom_image)
         )
         center_custom_boxA = get_box_center(custom_box_featA)
         center_custom_boxB = get_box_center(custom_box_featB)

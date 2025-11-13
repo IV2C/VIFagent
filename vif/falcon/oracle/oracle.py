@@ -16,6 +16,7 @@ class OracleResponse:
     score_object: Any = None
     evaluation_code: str = None
     seg_token_usage: dict = None
+    box_token_usage: dict = None
     prop_token_usage: dict = None
 
 

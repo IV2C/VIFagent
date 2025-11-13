@@ -161,7 +161,7 @@ def placement(feature: str, other_feature: str, direction: Direction) -> bool:
 
 def position(feature: str, other_feature: str, ratio: float, axis: Axis) -> bool:
     """
-    Asserts that a feature has moved by a certain ratio relative to another feature along a given axis.
+    Asserts that a feature has moved by a certain ratio relative to another unique feature along a given axis.
 
     Args:
         feature (str): The name of the moved feature.
@@ -245,7 +245,7 @@ def aligned(feature: str, other_feature: str, axis:Axis) -> bool:
         axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
     """
 ```
-
+TODO update this prompt
 All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle, and must be unambiguous unique features, for example, do not use "circle" if there are two circles in the image.
 You can give very detailed description of the feature you are searching for to make them unambiguous. When using these parameters, ensure the features are identifiable both in the initial and modified image.
 For example, if the instruction describes a color change, do not use the color as an attribute of the feature because it will not be the same in the modified image.

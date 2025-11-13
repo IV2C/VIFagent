@@ -14,7 +14,8 @@ class FalconVerifier(TexVerBaseline):
         *args,
         oracle_gen_model,
         oracle_gen_model_temperature,
-        vision_model,
+        box_model,
+        segmentation_model,
         property_model,
         property_model_temperature,
         gclient,
@@ -23,7 +24,8 @@ class FalconVerifier(TexVerBaseline):
     ):
         self.oracle_gen_model = oracle_gen_model
         self.oracle_gen_model_temperature = oracle_gen_model_temperature
-        self.vision_model = vision_model
+        self.box_model = box_model
+        self.segmentation_model = segmentation_model
         self.property_model = property_model
         self.property_model_temperature = property_model_temperature
 
@@ -31,17 +33,18 @@ class FalconVerifier(TexVerBaseline):
 
         self.oclient = oclient
 
-        self.oracle_module:OracleGuidedCodeModule = OracleGuidedCodeModule(
+        self.oracle_module: OracleGuidedCodeModule = OracleGuidedCodeModule(
             client=oclient,
             model=oracle_gen_model,
             temperature=oracle_gen_model_temperature,
             visual_client=oclient,
-            visual_model=vision_model,
+            box_model=box_model,
+            segmentation_model=segmentation_model,
             property_client=oclient,
             property_model=property_model,
-            property_model_temperature=property_model_temperature
+            property_model_temperature=property_model_temperature,
         )
-        
+
         super().__init__(*args, **kwargs)
 
     def get_config_metadata(self):
@@ -49,7 +52,8 @@ class FalconVerifier(TexVerBaseline):
             "name": "Falcon",
             "oracle_gen_model": self.oracle_gen_model,
             "oracle_gen_model_temperature": self.oracle_gen_model_temperature,
-            "vision_model": self.vision_model,
+            "box_model": self.box_model,
+            "segmentation_model": self.segmentation_model,
             "property_model": self.property_model,
             "property_model_temperature": self.property_model_temperature,
         }
@@ -59,9 +63,7 @@ class FalconVerifier(TexVerBaseline):
         oracle, metrics = self.oracle_module.get_oracle(
             ver_eval_input.initial_instruction, ver_eval_input.initial_image
         )
-        ver_eval_input.usage_metadata[
-            f"oracle_generation"
-        ] = [metrics]
+        ver_eval_input.usage_metadata[f"oracle_generation"] = [metrics]
 
         or_response = oracle(ver_eval_input.initial_solution_image)
 
@@ -73,11 +75,8 @@ class FalconVerifier(TexVerBaseline):
         )
         ver_eval_input.additional_metadata = asdict(fal_metadata)
 
-        ver_eval_input.usage_metadata[f"segmentation"] = (
-            or_response.seg_token_usage
-        )
-        ver_eval_input.usage_metadata[f"property"] = (
-            or_response.prop_token_usage
-        )
+        ver_eval_input.usage_metadata[f"segmentation"] = or_response.seg_token_usage
+        ver_eval_input.usage_metadata[f"box"] = or_response.box_token_usage
+        ver_eval_input.usage_metadata[f"property"] = or_response.prop_token_usage
 
         return ver_eval_input

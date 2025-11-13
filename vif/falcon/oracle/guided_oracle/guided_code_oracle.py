@@ -10,14 +10,14 @@ from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
 import hashlib
 
-from vif.models.detection import SegmentationMask
+from vif.models.detection import BoundingBox, SegmentationMask
 from vif.prompts.oracle_prompts import (
     ORACLE_CODE_PROMPT,
     ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
     ORACLE_PROPERTY_USAGE_PROMPT,
 )
 from vif.prompts.property_check_prompt import PROPERTY_PROMPT
-from vif.utils.detection_utils import get_segmentation_masks
+from vif.utils.detection_utils import get_bounding_boxes, get_segmentation_masks
 from vif.utils.image_utils import concat_images_horizontally, encode_image
 
 from vif.falcon.oracle.guided_oracle.property_expression import visual_property
@@ -45,15 +45,17 @@ class OracleGuidedCodeModule(OracleModule):
         client: Client,
         temperature=0.3,
         visual_client: genai.Client,
-        visual_model: str,
         property_model,
         property_client: Client,
         property_model_temperature=0.3,
+        segmentation_model: str = "gemini-2.5-flash",
+        box_model: str = "gemini-2.0-flash",
     ):
         self.visual_client = visual_client
-        self.visual_model = visual_model
-        self.segmentation_cache: dict[int, list[SegmentationMask]] = defaultdict(list)
+        self.segmentation_model = segmentation_model
+        self.box_model = box_model
         self.segmentation_usage: dict[str, str] = defaultdict(list)
+        self.box_usage: dict[str, str] = defaultdict(list)
         self.property_usage: dict[str, str] = defaultdict(list)
         self.property_client = property_client
         self.property_model = property_model
@@ -123,7 +125,6 @@ class OracleGuidedCodeModule(OracleModule):
             tuple[Callable[[Image.Image], OracleResponse],Any]: A tuple containing the function and usage metrics(token counts)
         """
 
-        self.segmentation_cache.clear()
         logger.info(f"Creating Oracle for instruction {instruction}")
         oracle_code, res_usage = self.get_oracle_code(instruction, base_image)
 
@@ -153,11 +154,13 @@ class OracleGuidedCodeModule(OracleModule):
             image: Image.Image,
         ) -> OracleResponse:
             self.segmentation_usage.clear()
+            self.box_usage.clear()
             self.property_usage.clear()
             result, feedbacks = expression.evaluate(
                 original_image=base_image,
                 custom_image=image,
-                segment_function=self.segments_from_features,
+                segment_function=self.segments_from_feature,
+                box_function=self.box_from_feature,
                 check_property_function=self.eval_property,
             )
             return OracleResponse(
@@ -165,48 +168,42 @@ class OracleGuidedCodeModule(OracleModule):
                 feedbacks,
                 evaluation_code=oracle_code,
                 seg_token_usage=self.segmentation_usage,
-                prop_token_usage=self.property_usage
+                box_token_usage=self.box_usage,
+                prop_token_usage=self.property_usage,
             )
 
         return oracle, res_usage
 
-    def segments_from_features(
-        self, features: list[str], image: Image.Image
-    ) -> tuple[list[SegmentationMask], Any]:
+    def box_from_feature(self, feature: str, image: Image.Image) -> list[BoundingBox]:
 
-        already_computed_label = [
-            label
-            for label in self.segmentation_cache[
-                hashlib.sha1(image.tobytes()).hexdigest()
-            ]
-        ]
+        boxes, token_usage = get_bounding_boxes(
+            image,
+            self.visual_client,
+            feature,
+            self.box_model,
+            enable_logprob=True
+        )
+        self.box_usage[feature + str(hashlib.sha1(image.tobytes()).hexdigest())] = (
+            token_usage
+        )
 
-        to_compute_features = [
-            comp_feat
-            for comp_feat in features
-            if comp_feat not in already_computed_label
-        ]
-        cache_hit_features = [
-            feat for feat in features if feat not in to_compute_features
-        ]
-        if len(cache_hit_features) > 0:
-            logger.info(
-                f"feature detection Cache hit for {','.join(cache_hit_features)}"
-            )
-        logger.info("Features to compute :[" + ",".join(to_compute_features) + "]")
+        return boxes
 
-        segments = self.segmentation_cache[hashlib.sha1(image.tobytes()).hexdigest()]
-        if len(to_compute_features) > 0:
-            segs, token_usage = get_segmentation_masks(
-                image,
-                self.visual_client,
-                to_compute_features,
-                self.visual_model,
-            )
-            segments += segs
-            self.segmentation_usage[
-                "".join(features) + str(hashlib.sha1(image.tobytes()).hexdigest())
-            ] = token_usage
+    def segments_from_feature(
+        self, feature: str, image: Image.Image
+    ) -> list[SegmentationMask]:
+
+        segs, token_usage = get_segmentation_masks(
+            image,
+            self.visual_client,
+            feature,
+            self.segmentation_model,
+            enable_logprob=False
+        )
+        segments += segs
+        self.segmentation_usage[
+            feature + str(hashlib.sha1(image.tobytes()).hexdigest())
+        ] = token_usage
 
         return segments
 

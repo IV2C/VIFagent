@@ -23,15 +23,102 @@ from google import genai
 from google.genai import types as genTypes
 
 
+full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")
+
+
+def key_function(func, *args, **kwargs):
+    image = args[0]
+    features = args[2]
+    model = args[3]
+    func_name = func.__name__
+
+    input_hash = hashlib.sha1(
+        str(
+            (
+                hashlib.sha1(image.tobytes()).hexdigest(),
+                features,
+                model,
+                func_name,
+            )
+        ).encode("utf8")
+    ).hexdigest()
+    return input_hash
+
+
+def get_res_detection_logbprob(response):
+    """
+    get log probabilities for each values in the segm mask response
+    """
+
+    probs = []
+    if response.candidates and response.candidates[0].logprobs_result:
+        logprobs_result = response.candidates[0].logprobs_result
+        i = 0
+        while i < len(logprobs_result.chosen_candidates):
+            chosen_candidate = logprobs_result.chosen_candidates[i]
+            if "{" in chosen_candidate.token:
+                current_detection = {}
+                i += 1
+                current_string = ""
+                while "}" not in chosen_candidate.token:
+                    chosen_candidate = logprobs_result.chosen_candidates[i]
+                    current_string += chosen_candidate.token
+                    if 'box_2d": [' in current_string:
+                        i += 1
+                        chosen_candidate = logprobs_result.chosen_candidates[i]
+                        box_prob_l = []
+                        while "]" not in chosen_candidate.token:
+                            if chosen_candidate.token.isdigit():
+                                box_prob_l.append(chosen_candidate.log_probability)
+                            i += 1
+                            chosen_candidate = logprobs_result.chosen_candidates[i]
+                        current_detection["box_prob"] = math.exp(
+                            sum(box_prob_l) / len(box_prob_l)
+                        )
+                        current_string = ""
+                    elif 'label": "' in current_string:
+                        i += 1
+                        chosen_candidate = logprobs_result.chosen_candidates[i]
+                        cur_label = ""
+                        while '"' not in chosen_candidate.token:
+                            cur_label += chosen_candidate.token
+                            i += 1
+                            chosen_candidate = logprobs_result.chosen_candidates[i]
+                        current_detection["label"] = cur_label
+                        current_string = ""
+                    elif 'mask": "' in current_string:
+                        i += 1
+                        chosen_candidate = logprobs_result.chosen_candidates[i]
+                        seg_prob_l = []
+                        while '"' not in chosen_candidate.token:
+                            if (
+                                "<" in chosen_candidate.token
+                                and not "<start_of_mask>" in chosen_candidate.token
+                            ):
+                                seg_prob_l.append(chosen_candidate.log_probability)
+                            i += 1
+                            chosen_candidate = logprobs_result.chosen_candidates[i]
+                        current_detection["seg_prob"] = math.exp(
+                            sum(seg_prob_l) / len(seg_prob_l)
+                        )
+                        current_string = ""
+                    else:
+                        i += 1
+                probs.append(current_detection)
+            i += 1
+    return probs
+
+
 def get_bounding_boxes(
     image: Image.Image,
     client: genai.Client,
-    features,
-    model,
+    feature,
+    model="gemini-2.0-flash",
+    enable_logprob: bool = True,
 ) -> list[BoundingBox]:
     encoded_image = encode_image(image=image)
 
-    logger.info(f"Getting boxes for features : {','.join(features)}")
+    logger.info(f"Getting boxe for feature : {feature}")
 
     contents = [
         genTypes.Content(
@@ -41,11 +128,7 @@ def get_bounding_boxes(
                     mime_type="image/png",
                     data=encoded_image,
                 ),
-                genTypes.Part.from_text(
-                    text=DETECTION_PROMPT.format(
-                        labels=", ".join(['"' + feature + '"' for feature in features])
-                    )
-                ),
+                genTypes.Part.from_text(text=DETECTION_PROMPT.format(label=feature)),
             ],
         ),
     ]
@@ -111,109 +194,34 @@ def get_bounding_boxes(
                 raise ime
             attempt_nb += 1
             continue
-        log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
+        log_and_append_token_data(token_data, res_meta, "box detection worked.")
         break
+
+    if enable_logprob:
+
+        log_probs = get_res_detection_logbprob(response)
+
+        for bound_box in bounding_boxes:
+            bound_box.box_prob = next(
+                log_prob["box_prob"]
+                for log_prob in log_probs
+                if log_prob["label"] == bound_box.label
+            )
 
     return (bounding_boxes, token_data)
 
 
-full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")
-
-
-def key_function(func, *args, **kwargs):
-    image = args[0]
-    features = args[2]
-    model = args[3]
-    func_name = func.__name__
-
-    input_hash = hashlib.sha1(
-        str(
-            (
-                hashlib.sha1(image.tobytes()).hexdigest(),
-                features,
-                model,
-                func_name,
-            )
-        ).encode("utf8")
-    ).hexdigest()
-    return input_hash
-
-
-def get_mask_seg_logbprob(response):
-    """
-    get log probabilities for each values in the segm mask response
-    """
-
-    probs = []
-    if response.candidates and response.candidates[0].logprobs_result:
-        logprobs_result = response.candidates[0].logprobs_result
-        i = 0
-        while i < len(logprobs_result.chosen_candidates):
-            chosen_candidate = logprobs_result.chosen_candidates[i]
-            if "{" in chosen_candidate.token:
-                current_detection = {}
-                i += 1
-                current_string = ""
-                while "}" not in chosen_candidate.token:
-                    chosen_candidate = logprobs_result.chosen_candidates[i]
-                    current_string += chosen_candidate.token
-                    if 'box_2d": [' in current_string:
-                        i += 1
-                        chosen_candidate = logprobs_result.chosen_candidates[i]
-                        box_prob_l = []
-                        while "]" not in chosen_candidate.token:
-                            if chosen_candidate.token.isdigit():
-                                box_prob_l.append(chosen_candidate.log_probability)
-                            i += 1
-                            chosen_candidate = logprobs_result.chosen_candidates[i]
-                        current_detection["box_prob"] = math.exp(
-                            sum(box_prob_l) / len(box_prob_l)
-                        )
-                        current_string = ""
-                    elif 'label": "' in current_string:
-                        i += 1
-                        chosen_candidate = logprobs_result.chosen_candidates[i]
-                        cur_label = ""
-                        while '"' not in chosen_candidate.token:
-                            cur_label += chosen_candidate.token
-                            i += 1
-                            chosen_candidate = logprobs_result.chosen_candidates[i]
-                        current_detection["label"] = cur_label
-                        current_string = ""
-                    elif 'mask": "' in current_string:
-                        i += 1
-                        chosen_candidate = logprobs_result.chosen_candidates[i]
-                        seg_prob_l = []
-                        while '"' not in chosen_candidate.token:
-                            if (
-                                "<" in chosen_candidate.token
-                                and not "<start_of_mask>" in chosen_candidate.token
-                            ):
-                                seg_prob_l.append(chosen_candidate.log_probability)
-                            i += 1
-                            chosen_candidate = logprobs_result.chosen_candidates[i]
-                        current_detection["seg_prob"] = math.exp(
-                            sum(seg_prob_l) / len(seg_prob_l)
-                        )
-                        current_string = ""
-                    else:
-                        i += 1
-                probs.append(current_detection)
-            i += 1
-    return probs
-
-
-@CachedRequest(full_seg_cache, key_function, True)
+# @CachedRequest(full_seg_cache, key_function, True)#TODO fix
 def get_segmentation_masks(
     image: Image.Image,
     client: genai.Client,
-    features,
-    model,
-    enable_logprob: bool = True,
+    feature: str,
+    model="gemini-2.5-flash",
+    enable_logprob: bool = False,
 ) -> tuple[list[SegmentationMask], list]:
     encoded_image = encode_image(image=image)
 
-    logger.info(f"Getting masks for features : {','.join(features)}")
+    logger.info(f"Getting masks for features : {feature}")
 
     contents = [
         genTypes.Content(
@@ -223,11 +231,7 @@ def get_segmentation_masks(
                     mime_type="image/png",
                     data=encoded_image,
                 ),
-                genTypes.Part.from_text(
-                    text=SEGMENTATION_PROMPT.format(
-                        labels=", ".join(['"' + feature + '"' for feature in features])
-                    )
-                ),
+                genTypes.Part.from_text(text=SEGMENTATION_PROMPT.format(label=feature)),
             ],
         ),
     ]
@@ -299,20 +303,12 @@ def get_segmentation_masks(
                 raise ime
             attempt_nb += 1
             continue
-        ## handling feature number detection error ##
-        if len(seg_masks) < len(features):
-            error_msg = f"The features {','.join(features)} were not detected."
-            log_and_append_token_data(token_data, res_meta, error_msg)
-
-            if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
-                raise InvalidMasksError(error_msg)
-            continue
         log_and_append_token_data(token_data, res_meta, "Segmentation worked.")
         break
 
     if enable_logprob:
 
-        log_probs = get_mask_seg_logbprob(response)
+        log_probs = get_res_detection_logbprob(response)
 
         for seg_mask in seg_masks:
             seg_mask.box_prob = next(

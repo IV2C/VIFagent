@@ -13,7 +13,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     shape,
     within,
 )
-from vif.models.detection import SegmentationMask
+from vif.models.detection import BoundingBox, SegmentationMask
 from PIL import Image
 from parameterized import parameterized
 
@@ -194,22 +194,24 @@ class TestExpression(unittest.TestCase):
     def test_position_valid(
         self, axis, originalBoxA, originalBoxB, customBoxA, customBoxB
     ):
-        original_features: list[SegmentationMask] = [
-            SegmentationMask(*originalBoxA, None, "triangle"),
-            SegmentationMask(*originalBoxB, None, "rectangle"),
-        ]
-        custom_features: list[SegmentationMask] = [
-            SegmentationMask(*customBoxA, None, "triangle"),
-            SegmentationMask(*customBoxB, None, "rectangle"),
-        ]
+
         feat_dict = {
-            hash(self.original_image.tobytes()): original_features,
-            hash(self.custom_image.tobytes()): custom_features,
+            hash((self.original_image.tobytes(), "triangle")): [
+                BoundingBox(*originalBoxA, "triangle")
+            ],
+            hash((self.original_image.tobytes(), "rectangle")): [
+                BoundingBox(*originalBoxB, "rectangle")
+            ],
+            hash((self.custom_image.tobytes(), "triangle")): [
+                BoundingBox(*customBoxA, "triangle")
+            ],
+            hash((self.custom_image.tobytes(), "rectangle")): [
+                BoundingBox(*customBoxB, "rectangle")
+            ],
         }
 
-        def get_features(features: list[str], image: Image.Image):
-
-            return feat_dict[hash(image.tobytes())]
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
 
         def test_valid_customization() -> bool:
             return position("triangle", "rectangle", 2, axis)
@@ -219,9 +221,105 @@ class TestExpression(unittest.TestCase):
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
+            box_function=get_features,
         )
         self.assertTrue(result, feedback)
         self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            (
+                (30, 30, 50, 50),
+                (40, 40, 60, 60),
+                (30, 30, 50, 50),
+                (50, 40, 70, 60),
+            )
+        ]
+    )
+    def test_position_valid_multiple(
+        self, originalBoxA, originalBoxB, customBoxA, customBoxB
+    ):
+
+        feat_dict = {
+            hash((self.original_image.tobytes(), "triangle")): [
+                BoundingBox(*originalBoxA, "triangle1"),
+                BoundingBox(*originalBoxA, "triangle2"),
+            ],
+            hash((self.original_image.tobytes(), "rectangle")): [
+                BoundingBox(*originalBoxB, "rectangle")
+            ],
+            hash((self.custom_image.tobytes(), "triangle")): [
+                BoundingBox(*customBoxA, "triangle1"),
+                BoundingBox(*customBoxA, "triangle2"),
+            ],
+            hash((self.custom_image.tobytes(), "rectangle")): [
+                BoundingBox(*customBoxB, "rectangle")
+            ],
+        }
+
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
+
+        def test_valid_customization() -> bool:
+            return position("triangle", "rectangle", 2, "vertical")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image=self.original_image,
+            custom_image=self.custom_image,
+            segment_function=get_features,
+            box_function=get_features,
+        )
+        self.assertTrue(result, feedback)
+        self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            (
+                (30, 30, 50, 50),
+                (40, 40, 60, 60),
+                (30, 30, 50, 50),
+                (40, 30, 60, 50),
+                (50, 40, 70, 60),
+            )
+        ]
+    )
+    def test_position_invalid_multiple(
+        self, originalBoxA, originalBoxB, customBoxA, customBoxA2, customBoxB
+    ):
+
+        feat_dict = {
+            hash((self.original_image.tobytes(), "triangle")): [
+                BoundingBox(*originalBoxA, "triangle1"),
+                BoundingBox(*originalBoxA, "triangle2"),
+            ],
+            hash((self.original_image.tobytes(), "rectangle")): [
+                BoundingBox(*originalBoxB, "rectangle")
+            ],
+            hash((self.custom_image.tobytes(), "triangle")): [
+                BoundingBox(*customBoxA, "triangle1"),
+                BoundingBox(*customBoxA2, "triangle2"),
+            ],
+            hash((self.custom_image.tobytes(), "rectangle")): [
+                BoundingBox(*customBoxB, "rectangle")
+            ],
+        }
+
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
+
+        def test_valid_customization() -> bool:
+            return position("triangle", "rectangle", 2, "vertical")
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image=self.original_image,
+            custom_image=self.custom_image,
+            segment_function=get_features,
+            box_function=get_features,
+        )
+        self.assertFalse(result, feedback)
+        self.assertEqual(["The vertical distance between triangle2 and rectangle was supposed to be around 20.0, but was 10.0."], feedback)
 
     @parameterized.expand(
         [
@@ -249,22 +347,23 @@ class TestExpression(unittest.TestCase):
         customBoxA,
         customBoxB,
     ):
-        original_features: list[SegmentationMask] = [
-            SegmentationMask(*originalBoxA, None, "triangle"),
-            SegmentationMask(*originalBoxB, None, "rectangle"),
-        ]
-        custom_features: list[SegmentationMask] = [
-            SegmentationMask(*customBoxA, None, "triangle"),
-            SegmentationMask(*customBoxB, None, "rectangle"),
-        ]
         feat_dict = {
-            hash(self.original_image.tobytes()): original_features,
-            hash(self.custom_image.tobytes()): custom_features,
+            hash((self.original_image.tobytes(), "triangle")): [
+                BoundingBox(*originalBoxA, "triangle")
+            ],
+            hash((self.original_image.tobytes(), "rectangle")): [
+                BoundingBox(*originalBoxB, "rectangle")
+            ],
+            hash((self.custom_image.tobytes(), "triangle")): [
+                BoundingBox(*customBoxA, "triangle")
+            ],
+            hash((self.custom_image.tobytes(), "rectangle")): [
+                BoundingBox(*customBoxB, "rectangle")
+            ],
         }
 
-        def get_features(features: list[str], image: Image.Image):
-
-            return feat_dict[hash(image.tobytes())]
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
 
         def test_valid_customization() -> bool:
             return ~position("triangle", "rectangle", 2, axis)
@@ -273,6 +372,7 @@ class TestExpression(unittest.TestCase):
         result, feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
+            box_function=get_features,
             segment_function=get_features,
         )
         self.assertTrue(result, feedback)
@@ -307,22 +407,23 @@ class TestExpression(unittest.TestCase):
         customBoxB,
         feedback_expected,
     ):
-        original_features: list[SegmentationMask] = [
-            SegmentationMask(*originalBoxA, None, "triangle"),
-            SegmentationMask(*originalBoxB, None, "rectangle"),
-        ]
-        custom_features: list[SegmentationMask] = [
-            SegmentationMask(*customBoxA, None, "triangle"),
-            SegmentationMask(*customBoxB, None, "rectangle"),
-        ]
         feat_dict = {
-            hash(self.original_image.tobytes()): original_features,
-            hash(self.custom_image.tobytes()): custom_features,
+            hash((self.original_image.tobytes(), "triangle")): [
+                BoundingBox(*originalBoxA, "triangle")
+            ],
+            hash((self.original_image.tobytes(), "rectangle")): [
+                BoundingBox(*originalBoxB, "rectangle")
+            ],
+            hash((self.custom_image.tobytes(), "triangle")): [
+                BoundingBox(*customBoxA, "triangle")
+            ],
+            hash((self.custom_image.tobytes(), "rectangle")): [
+                BoundingBox(*customBoxB, "rectangle")
+            ],
         }
 
-        def get_features(features: list[str], image: Image.Image):
-
-            return feat_dict[hash(image.tobytes())]
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
 
         def test_valid_customization() -> bool:
             return ~position("triangle", "rectangle", 2, axis)
@@ -331,6 +432,7 @@ class TestExpression(unittest.TestCase):
         result, feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
+            box_function=get_features,
             segment_function=get_features,
         )
         self.assertFalse(result)
