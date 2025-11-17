@@ -150,26 +150,36 @@ Here are the helper functions that you have access to:
 ```python
 def placement(feature: str, other_feature: str, direction: Direction) -> bool:
     """
-    Asserts that a feature is in a certain direction relative to another feature.
+    Asserts that one or more feature(s) are in a certain direction relative to on or more other features.
 
     Args:
-        feature (str): The name of the first feature.
-        other_feature (str): The name of the reference feature.
+        feature (str): The name of the first feature(s).
+        other_feature (str): The name of the other reference feature(s).
         direction (Direction): One of "left", "right", "over", or "under".(e.g. "feature is on the left/right of the other_feature" or "feature is over/under the other_feature")
     """
 
 
 def position(feature: str, other_feature: str, ratio: float, axis: Axis) -> bool:
     """
-    Asserts that a feature has moved by a certain ratio relative to another unique feature along a given axis.
+    Asserts that one or more feature(s) have moved by a certain ratio relative to another unique feature along a given axis.
 
     Args:
-        feature (str): The name of the moved feature.
+        feature (str): The name of the moved feature(s).
         other_feature (str): The reference feature used to compute the movement.
         ratio (float): A positive ratio indicating the relative movement distance, when compared to the original distance between the two features.
         axis (Axis): Either "horizontal" or "vertical".
     """
 
+
+def angle(feature: str, degree: int) -> bool:
+    """
+    Asserts that one or more features have been rotated by a specified angle.
+
+    Args:
+        feature (str): The name of the feature.
+        degree (int): The rotation angle in degrees (from -180 to 180).
+    """
+    
 
 def color(feature: str, expected_color: str) -> bool:
     """
@@ -181,40 +191,41 @@ def color(feature: str, expected_color: str) -> bool:
     """
 
 
-def angle(feature: str, degree: int) -> bool:
-    """
-    Asserts that a feature has been rotated by a specified angle.
-
-    Args:
-        feature (str): The name of the feature.
-        degree (int): The rotation angle in degrees (from -180 to 180).
-    """
-
 def size(feature: str, ratio: Tuple[float, float]) -> bool:
     """
-    Asserts that a feature has been resized by given scaling factors along x and y.
+    Asserts that one or multiple feature(s) have been resized by given scaling factors along x and y.
 
     Args:
-        feature (str): The name of the resized feature.
+        feature (str): The name of the resized feature(s).
         ratio (Tuple[float, float]): Scaling factors applied to the feature’s width (x) and height (y), relative to its own original dimensions. 
     """
-    
-def within(feature: str, other_feature: str) -> bool:
-    """
-    Asserts that a feature is contained in another feature.
 
-    Args:
-        feature (str): The name of the feature contained in "other_feature".
-        other_feature (str): The name of the other feature that contains "feature".
-    """
-    
 def shape(feature: str, shape: str) -> bool:
     """
-    Asserts that a feature looks like a certain shape.
+    Asserts that one or more feature(s) looks like a certain shape.
 
     Args:
-        feature (str): The name of feature.
+        feature (str): The name of feature(s).
         shape (str): An open string describing the shape of the feature (square, triangle, ellipse,etc.).
+    """
+
+def within(feature: str, other_feature: str) -> bool:
+    """
+    Asserts that one or multiple features is/are contained in another unique feature.
+
+    Args:
+        feature (str): The name of the feature(s) contained in "other_feature".
+        other_feature (str): The name of the unique other feature that contains "feature".
+    """
+
+def mirrored(feature: str, axis:Axis) -> bool:
+    """
+    Asserts that one or multiple feature(s) is/are mirrored along an axis.
+
+    Args:
+        feature (str): The name of the feature(s).
+        axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
+
     """
 
 def present(feature: str) -> bool:
@@ -225,24 +236,15 @@ def present(feature: str) -> bool:
         feature (str): The name of the feature present.
     """
     
-def mirrored(feature: str, axis:Axis) -> bool:
-    """
-    Asserts that a feature is mirrored along an axis.
-
-    Args:
-        feature (str): The name of the feature.
-        axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
-
-    """
 
 def aligned(feature: str, other_feature: str, axis:Axis) -> bool:
     """
-    Asserts that a feature is aligned with another another feature vertically or horizontally.
+    Asserts that one or more feature(s) is/are aligned with one or more other feature(s) vertically or horizontally.
 
     Args:
         feature (str): The name of the first feature.
         other_feature (str): The name of the second feature.
-        axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
+        axis (Axis): Either "horizontal" or "vertical".
     """
 ```
 TODO update this prompt
