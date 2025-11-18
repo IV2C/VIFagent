@@ -70,25 +70,25 @@ class TestExpression(unittest.TestCase):
                 "left",
                 (40, 40, 60, 60),
                 (40, 30, 60, 50),
-                "The feature(s) triangle is not on the left of the feature(s) rectangle",
+                "The triangle is not on the left of the rectangle",
             ),
             (
                 "right",
                 (40, 30, 60, 50),
                 (40, 40, 60, 60),
-                "The feature(s) triangle is not on the right of the feature(s) rectangle",
+                "The triangle is not on the right of the rectangle",
             ),
             (
                 "under",
                 (30, 40, 50, 60),
                 (40, 40, 60, 60),
-                "The feature(s) triangle is not under the feature(s) rectangle",
+                "The triangle is not under the rectangle",
             ),
             (
                 "over",
                 (40, 40, 60, 60),
                 (30, 40, 50, 60),
-                "The feature(s) triangle is not above the feature(s) rectangle",
+                "The triangle is not above the rectangle",
             ),
         ]
     )
@@ -228,6 +228,46 @@ class TestExpression(unittest.TestCase):
         )
         self.assertTrue(result)
         self.assertEqual([], feedback)
+
+    @parameterized.expand(
+        [
+            (
+                "right",
+                (40, 40, 60, 50),
+                (40, 50, 60, 60),
+                (40, 30, 60, 50),
+                (40, 45, 60, 50),
+            )
+        ]
+    )
+    def test_placement_invalid_multiple(self, direction, boxTA, boxTB, boxRA, boxRB):
+
+        feat_dict = {
+            hash((self.custom_image.tobytes(), "triangles")): [
+                BoundingBox(*boxTA, "triangleA"),
+                BoundingBox(*boxTB, "triangleB"),
+            ],
+            hash((self.custom_image.tobytes(), "rectangles")): [
+                BoundingBox(*boxRA, "rectangleA"),
+                BoundingBox(*boxRB, "rectangleB"),
+            ],
+        }
+
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
+
+        def test_valid_customization() -> bool:
+            return placement("triangles", "rectangles", direction)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image=self.original_image,
+            custom_image=self.custom_image,
+            segment_function=get_features,
+            box_function=get_features,
+        )
+        self.assertFalse(result)
+        self.assertEqual(['The triangleA is not on the right of the rectangleB'], feedback)
 
     @parameterized.expand(
         [
@@ -588,7 +628,7 @@ class TestExpression(unittest.TestCase):
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        expected_feedback = f"The feature blue square should be rotated by {degree} degrees, but is rotated by -135,45,-45,135 degrees."
+        expected_feedback = f"The blue square should be rotated by {degree} degrees, but is rotated by -135,45,-45,135 degrees."
         self.assertFalse(result)
         self.assertEqual([expected_feedback], feedback)
 
@@ -681,7 +721,7 @@ class TestExpression(unittest.TestCase):
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        expected_feedback = f"The feature blue square should not be rotated by {degree} degrees, and is rotated by -135,45,-45,135 degrees, which is too close/equal."
+        expected_feedback = f"The blue square should not be rotated by {degree} degrees, and is rotated by -135,45,-45,135 degrees, which is too close/equal."
         self.assertFalse(result)
         self.assertEqual([expected_feedback], feedback)
 
@@ -738,7 +778,7 @@ class TestExpression(unittest.TestCase):
             custom_image=custom_image,
             segment_function=get_features,
         )
-        epected_feedback = f"The color of the feature(s) blue square should have been {color_expected}, but is closer to very light purple, light purple, very light blue."
+        epected_feedback = f"The color of the blue square should have been {color_expected}, but is closer to very light purple, light purple, very light blue."
 
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)
@@ -797,7 +837,7 @@ class TestExpression(unittest.TestCase):
             custom_image=custom_image,
             segment_function=get_features,
         )
-        epected_feedback = f"The color of the feature(s) blue square should not have been {color_expected}, but is still too close to {color_expected}."
+        epected_feedback = f"The color of the blue square should not have been {color_expected}, but is still too close to {color_expected}."
 
         self.assertFalse(result, feedback)
         self.assertEqual([epected_feedback], feedback)
@@ -1177,7 +1217,7 @@ class TestExpression(unittest.TestCase):
         self.assertEqual(
             feedback,
             [
-                "The feature triangleB should be in the shape of a triangle, but looks more like a circle,rectangle."
+                "The triangleB should be in the shape of a triangle, but looks more like a circle,rectangle."
             ],
         )
 
@@ -1220,7 +1260,7 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result, feedback)
         self.assertEqual(
-            f"The feature {feature} should be in the shape of a {shape_expected}, but looks more like a {shapes_found}.",
+            f"The {feature} should be in the shape of a {shape_expected}, but looks more like a {shapes_found}.",
             feedback[0],
         )
 
@@ -1303,7 +1343,7 @@ class TestExpression(unittest.TestCase):
 
         self.assertFalse(result, feedback)
         self.assertEqual(
-            f"The feature {feature} should not be in the shape of a {shape_expected}, but still looks like a {shape_expected}.",
+            f"The {feature} should not be in the shape of a {shape_expected}, but still looks like a {shape_expected}.",
             feedback[0],
         )
 
@@ -1398,7 +1438,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                "The feature left eye should be contained in the feature right eye, but isn't."
+                "The left eye should be contained in the feature right eye, but isn't."
             ],
             feedback,
         )
@@ -1432,7 +1472,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                f"The feature left eye should be contained in the feature right eye, but isn't."
+                f"The left eye should be contained in the feature right eye, but isn't."
             ],
             feedback,
         )
@@ -1495,7 +1535,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                f"The feature left eye should not be contained in the feature dog's face, but is actually within it."
+                f"The left eye should not be contained in the feature dog's face, but is actually within it."
             ],
             feedback,
         )
@@ -1569,7 +1609,7 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual(
-            ["The feature dog's face should be mirrored along the vertical axis."],
+            ["The dog's face should be mirrored along the vertical axis."],
             feedback,
         )
 
@@ -1640,7 +1680,7 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual(
-            ["The feature dog's face should be mirrored along the horizontal axis."],
+            ["The dog's face should be mirrored along the horizontal axis."],
             feedback,
         )
 
@@ -1677,7 +1717,7 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual(
-            ["The feature dog's face should not be mirrored along the vertical axis."],
+            ["The dog's face should not be mirrored along the vertical axis."],
             feedback,
         )
 
@@ -1715,7 +1755,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                "The feature dog's face should not be mirrored along the horizontal axis."
+                "The dog's face should not be mirrored along the horizontal axis."
             ],
             feedback,
         )
@@ -1801,7 +1841,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                f"The feature circle should be aligned {axis}ly w.r.t. the feature circle and square."
+                f"The circle should be aligned {axis}ly w.r.t. the features circle and square."
             ],
             feedback,
         )
@@ -1890,7 +1930,7 @@ class TestExpression(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(
             [
-                f"The feature circleB should be aligned {axis}ly w.r.t. the feature square and circle."
+                f"The circleB should be aligned {axis}ly w.r.t. the features square and circle."
             ],
             feedback,
         )

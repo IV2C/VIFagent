@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import os
 from typing import Any
 from openai import Client
+from vif.models.detection import BoundingBox, SegmentationMask
 from vif.models.module import LLMmodule
 from PIL import Image
 
@@ -18,6 +19,8 @@ class OracleResponse:
     seg_token_usage: dict = None
     box_token_usage: dict = None
     prop_token_usage: dict = None
+    boxes:list[BoundingBox] = []
+    segments:list[SegmentationMask] = []
 
 
 class OracleModule(LLMmodule):

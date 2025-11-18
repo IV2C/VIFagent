@@ -315,6 +315,25 @@ class placement(OracleCondition):
         self.other_feature = other_feature
         self.direction = direction
 
+        self.direction_eval_map = {
+            Direction.left: (
+                lambda m1, m2: m1[0] < m2[0],
+                lambda labelA, labelB: f"The {labelA} is not on the left of the {labelB}",
+            ),
+            Direction.right: (
+                lambda m1, m2: m1[0] > m2[0],
+                lambda labelA, labelB: f"The {labelA} is not on the right of the {labelB}",
+            ),
+            Direction.over: (
+                lambda m1, m2: m1[1] < m2[1],
+                lambda labelA, labelB: f"The {labelA} is not above the {labelB}",
+            ),
+            Direction.under: (
+                lambda m1, m2: m1[1] > m2[1],
+                lambda labelA, labelB: f"The {labelA} is not under the {labelB}",
+            ),
+        }
+
         super().__init__(feature)
 
     def __invert__(self):
@@ -333,36 +352,21 @@ class placement(OracleCondition):
         boxes_featA = box_function(self.feature, custom_image)
         boxes_featB = box_function(self.other_feature, custom_image)
 
-        centers_boxA = [get_box_center(box_featA) for box_featA in boxes_featA]
-        centers_boxB = [get_box_center(box_featB) for box_featB in boxes_featB]
+        label_centers_boxA = [
+            (box_featA.label, get_box_center(box_featA)) for box_featA in boxes_featA
+        ]
+        label_centers_boxB = [
+            (box_featB.label, get_box_center(box_featB)) for box_featB in boxes_featB
+        ]
 
-        direction_eval_map = {
-            Direction.left: (
-                lambda m1, m2: m1[0] < m2[0],
-                f"The feature(s) {self.feature} is not on the left of the feature(s) {self.other_feature}",
-            ),
-            Direction.right: (
-                lambda m1, m2: m1[0] > m2[0],
-                f"The feature(s) {self.feature} is not on the right of the feature(s) {self.other_feature}",
-            ),
-            Direction.over: (
-                lambda m1, m2: m1[1] < m2[1],
-                f"The feature(s) {self.feature} is not above the feature(s) {self.other_feature}",
-            ),
-            Direction.under: (
-                lambda m1, m2: m1[1] > m2[1],
-                f"The feature(s) {self.feature} is not under the feature(s) {self.other_feature}",
-            ),
-        }
-
-        condition_func, feedback = direction_eval_map[self.direction]
-        condition = all(
-            condition_func(center_boxA, center_boxB)
-            for center_boxA in centers_boxA
-            for center_boxB in centers_boxB
-        )
-
-        return (condition, [feedback] if not condition else [])
+        condition_func, feedback_func = self.direction_eval_map[self.direction]
+        conditions_feedbacks = [
+            (condition_func(center_boxA, center_boxB), feedback_func(labelA, labelB))
+            for labelA, center_boxA in label_centers_boxA
+            for labelB, center_boxB in label_centers_boxB
+        ]
+        condition = all([cond for cond, feed in conditions_feedbacks])
+        return (condition, [feed for cond, feed in conditions_feedbacks if not cond])
 
 
 class position(OracleCondition):
@@ -500,9 +504,9 @@ class angle(OracleCondition):
 
         if self.negated:
             condition = not condition
-            feedback = f"The feature {ori_seg.label} should not be rotated by {self.degree} degrees, and is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees, which is too close/equal."
+            feedback = f"The {ori_seg.label} should not be rotated by {self.degree} degrees, and is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees, which is too close/equal."
         else:
-            feedback = f"The feature {ori_seg.label} should be rotated by {self.degree} degrees, but is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees."
+            feedback = f"The {ori_seg.label} should be rotated by {self.degree} degrees, but is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees."
 
         return (condition, feedback)
 
@@ -547,16 +551,10 @@ class color(OracleCondition):
         self.negated = True
         return self
 
-    def get_feature_colors(
-        self, features_seg: list[SegmentationMask], image: Image.Image
-    ):
+    def get_feature_colors(self, features_seg: SegmentationMask, image: Image.Image):
         img_np = np.array(image)
 
-        masked_pixels = img_np[
-            np.logical_or.reduce(
-                [feature_seg.mask.astype(bool) for feature_seg in features_seg]
-            )
-        ]
+        masked_pixels = img_np[features_seg.mask.astype(bool)]
 
         most_common = Counter(map(tuple, masked_pixels)).most_common()
         ratio_common = int(0.9 * len(most_common))
@@ -569,17 +567,7 @@ class color(OracleCondition):
             feat /= feat.norm(dim=-1, keepdim=True)
         return feat
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
-        cust_features = segment_function(self.feature, custom_image)
-
-        custom_colors_counts = self.get_feature_colors(cust_features, custom_image)
-        color_image = image_from_color_count(custom_colors_counts)
-
-        eval_colors = [self.color_expected] + basic_colors
-
-        clip_encoded_color_names = clip_model.encode_text(clip_tokenizer(eval_colors))
-
-        image_features = self.get_image_features(color_image)
+    def check_color(self, image_features, clip_encoded_color_names, eval_colors, label):
         with torch.no_grad(), torch.autocast("cuda"):
             text_probs = (100.0 * image_features @ clip_encoded_color_names.T).softmax(
                 dim=-1
@@ -594,13 +582,43 @@ class color(OracleCondition):
             or any(self.color_expected in cur_col for cur_col in most_similar_colors)
         )
 
-        feedback = f"The color of the feature(s) {self.feature} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in most_similar_colors[:3]])}."
+        feedback = f"The color of the {label} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in most_similar_colors[:3]])}."
 
         if self.negated:
             condition = not condition
-            feedback = f"The color of the feature(s) {self.feature} should not have been {self.color_expected.removesuffix(" color")}, but is still too close to {self.color_expected.removesuffix(" color")}."
+            feedback = f"The color of the {label} should not have been {self.color_expected.removesuffix(" color")}, but is still too close to {self.color_expected.removesuffix(" color")}."
 
-        return (condition, [feedback] if not condition else [])
+        return (condition, feedback)
+
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        cust_features = segment_function(self.feature, custom_image)
+
+        custom_colors_counts = [
+            self.get_feature_colors(seg, custom_image) for seg in cust_features
+        ]
+        color_images = [
+            image_from_color_count(custom_color_count)
+            for custom_color_count in custom_colors_counts
+        ]
+
+        eval_colors = [self.color_expected] + basic_colors
+
+        clip_encoded_color_names = clip_model.encode_text(clip_tokenizer(eval_colors))
+
+        image_features = [
+            self.get_image_features(color_image) for color_image in color_images
+        ]
+        cond_feed = [
+            self.check_color(
+                image_feature, clip_encoded_color_names, eval_colors, seg.label
+            )
+            for image_feature, seg in zip(image_features, cust_features)
+        ]
+
+        condition = all([cond for cond, feed in cond_feed])
+        feedbacks = [feed for cond, feed in cond_feed if not cond]
+
+        return (condition, feedbacks)
 
 
 class size(OracleCondition):
@@ -717,11 +735,11 @@ class shape(OracleCondition):
         most_similar_shapes = np.array(all_shapes)[top_indice]
 
         condition = self.req_shape in most_similar_shapes
-        feedback = f"The feature {label} should be in the shape of a {self.req_shape}, but looks more like a {','.join(most_similar_shapes[:2])}."
+        feedback = f"The {label} should be in the shape of a {self.req_shape}, but looks more like a {','.join(most_similar_shapes[:2])}."
 
         if self.negated:
             condition = not condition
-            feedback = f"The feature {label} should not be in the shape of a {self.req_shape}, but still looks like a {self.req_shape}."
+            feedback = f"The {label} should not be in the shape of a {self.req_shape}, but still looks like a {self.req_shape}."
 
         return (condition, feedback)
 
@@ -761,11 +779,11 @@ class within(OracleCondition):
         score = np.logical_and(segA.mask, segB.mask).sum() / segA.mask.sum()
         condition = round(score, 2) > 0.9
 
-        feedback = f"The feature {segA.label} should be contained in the feature {segB.label}, but isn't."
+        feedback = f"The {segA.label} should be contained in the feature {segB.label}, but isn't."
 
         if self.negated:
             condition = not condition
-            feedback = f"The feature {segA.label} should not be contained in the feature {segB.label}, but is actually within it."
+            feedback = f"The {segA.label} should not be contained in the feature {segB.label}, but is actually within it."
         return (condition, feedback)
 
     def evaluate(self, *, original_image, custom_image, segment_function, box_function):
@@ -826,9 +844,11 @@ class mirrored(OracleCondition):
 
         if self.negated:
             condition = not condition
-            feedback = f"The feature {ori_seg.label} should not be mirrored along the {self.axis} axis."
+            feedback = f"The {ori_seg.label} should not be mirrored along the {self.axis} axis."
         else:
-            feedback = f"The feature {ori_seg.label} should be mirrored along the {self.axis} axis."
+            feedback = (
+                f"The {ori_seg.label} should be mirrored along the {self.axis} axis."
+            )
 
         return (condition, feedback)
 
@@ -908,34 +928,18 @@ class aligned(OracleCondition):
                 label_conditions = label_conditions_x
         condition = all([condition for _, condition in label_conditions])
         feedbacks = [
-            f"The feature {label} should be aligned {self.axis}ly w.r.t. the feature {self.feature} and {self.other_feature}."
+            f"The {label} should be aligned {self.axis}ly w.r.t. the features {self.feature} and {self.other_feature}."
             for label, condition in label_conditions
             if not condition
         ]
         if self.negated:
             condition = not condition
             feedbacks = [
-                f"The feature {label} should not be aligned {self.axis}ly w.r.t. the feature {self.feature} and {self.other_feature}."
+                f"The {label} should not be aligned {self.axis}ly w.r.t. the features {self.feature} and {self.other_feature}."
                 for label, condition in label_conditions
                 if condition
             ]
         return (condition, feedbacks)
-
-    def horizontal_oracle(
-        self, d1: tuple[int, int], d2: tuple[int, int]
-    ) -> tuple[bool, str]:
-        expected_distance = self.ratio * d1[0]
-        condition = (
-            expected_distance - 0.1 * expected_distance
-            <= d2[0]
-            <= expected_distance + 0.1 * expected_distance
-        )
-        if self.negated:
-            feedback = f"The horizontal distance between {self.feature} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
-            return (not condition, feedback)
-
-        feedback = f"The horizontal distance between {self.feature} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
-        return (condition, feedback)
 
 
 class count(OracleCondition):

@@ -62,6 +62,9 @@ class OracleGuidedCodeModule(OracleModule):
         self.property_model = property_model
         self.property_model_temperature = property_model_temperature
 
+        self.identified_boxes: list[BoundingBox] = []
+        self.identified_segments: list[SegmentationMask] = []
+
         super().__init__(
             client=client,
             temperature=temperature,
@@ -158,6 +161,8 @@ class OracleGuidedCodeModule(OracleModule):
             self.segmentation_usage.clear()
             self.box_usage.clear()
             self.property_usage.clear()
+            self.identified_segments = []
+            self.identified_boxes = []
             result, feedbacks = expression.evaluate(
                 original_image=base_image,
                 custom_image=image,
@@ -172,6 +177,8 @@ class OracleGuidedCodeModule(OracleModule):
                 seg_token_usage=self.segmentation_usage,
                 box_token_usage=self.box_usage,
                 prop_token_usage=self.property_usage,
+                boxes=self.identified_boxes,
+                segments=self.identified_segments,
             )
 
         return oracle, res_usage
@@ -185,6 +192,8 @@ class OracleGuidedCodeModule(OracleModule):
             token_usage
         )
 
+        self.identified_boxes.extend(boxes)
+        
         return boxes
 
     def segments_from_feature(
@@ -198,12 +207,13 @@ class OracleGuidedCodeModule(OracleModule):
             self.segmentation_model,
             enable_logprob=False,
         )
-        segments += segs
         self.segmentation_usage[
             feature + str(hashlib.sha1(image.tobytes()).hexdigest())
         ] = token_usage
+        
+        self.identified_boxes.extend(segs)
 
-        return segments
+        return segs
 
     def normalize_oracle_function(self, function: str):
         return (
