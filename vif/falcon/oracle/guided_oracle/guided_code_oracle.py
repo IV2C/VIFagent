@@ -24,6 +24,7 @@ from vif.falcon.oracle.guided_oracle.property_expression import visual_property
 from vif.falcon.oracle.guided_oracle.expressions import (
     OracleExpression,
     aligned,
+    count,
     present,
     angle,
     placement,
@@ -139,6 +140,7 @@ class OracleGuidedCodeModule(OracleModule):
             "present": present,
             "mirrored": mirrored,
             "aligned": aligned,
+            "count": count,
             "visual_property": visual_property,
         }
 
@@ -177,11 +179,7 @@ class OracleGuidedCodeModule(OracleModule):
     def box_from_feature(self, feature: str, image: Image.Image) -> list[BoundingBox]:
 
         boxes, token_usage = get_bounding_boxes(
-            image,
-            self.visual_client,
-            feature,
-            self.box_model,
-            enable_logprob=True
+            image, self.visual_client, feature, self.box_model, enable_logprob=True
         )
         self.box_usage[feature + str(hashlib.sha1(image.tobytes()).hexdigest())] = (
             token_usage
@@ -198,7 +196,7 @@ class OracleGuidedCodeModule(OracleModule):
             self.visual_client,
             feature,
             self.segmentation_model,
-            enable_logprob=False
+            enable_logprob=False,
         )
         segments += segs
         self.segmentation_usage[

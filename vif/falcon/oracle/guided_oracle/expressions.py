@@ -908,14 +908,16 @@ class aligned(OracleCondition):
                 label_conditions = label_conditions_x
         condition = all([condition for _, condition in label_conditions])
         feedbacks = [
-                f"The feature {label} should be aligned {self.axis}ly w.r.t. the feature {self.feature} and {self.other_feature}."
-                for label, condition in label_conditions if not condition
-            ]
+            f"The feature {label} should be aligned {self.axis}ly w.r.t. the feature {self.feature} and {self.other_feature}."
+            for label, condition in label_conditions
+            if not condition
+        ]
         if self.negated:
             condition = not condition
             feedbacks = [
                 f"The feature {label} should not be aligned {self.axis}ly w.r.t. the feature {self.feature} and {self.other_feature}."
-                for label, condition in label_conditions if condition
+                for label, condition in label_conditions
+                if condition
             ]
         return (condition, feedbacks)
 
@@ -934,3 +936,25 @@ class aligned(OracleCondition):
 
         feedback = f"The horizontal distance between {self.feature} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
         return (condition, feedback)
+
+
+class count(OracleCondition):
+    def __init__(self, feature: str, amount: int):
+        self.amount = amount
+        self.negated = False
+        super().__init__(feature)
+
+    def __invert__(self):
+        self.negated = True
+        return self
+
+    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+        custom_boxes_feat = box_function(self.feature, custom_image)
+        condition = len(custom_boxes_feat) == self.amount
+
+        feedback = f"The number of {self.feature} is {len(custom_boxes_feat)}, but should be {self.amount}."
+
+        if self.negated:
+            condition = not condition
+            feedback = f"The number of {self.feature} should not be {self.amount}."
+        return (condition, [feedback] if not condition else [])

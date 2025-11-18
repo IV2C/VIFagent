@@ -150,21 +150,21 @@ Here are the helper functions that you have access to:
 ```python
 def placement(feature: str, other_feature: str, direction: Direction) -> bool:
     """
-    Asserts that one or more feature(s) are in a certain direction relative to on or more other features.
+    Asserts that a featre is in a certain direction relative another feature.
 
     Args:
-        feature (str): The name of the first feature(s).
-        other_feature (str): The name of the other reference feature(s).
+        feature (str): The name of the first feature.
+        other_feature (str): The name of the other reference feature.
         direction (Direction): One of "left", "right", "over", or "under".(e.g. "feature is on the left/right of the other_feature" or "feature is over/under the other_feature")
     """
 
 
 def position(feature: str, other_feature: str, ratio: float, axis: Axis) -> bool:
     """
-    Asserts that one or more feature(s) have moved by a certain ratio relative to another unique feature along a given axis.
+    Asserts that a feature have moved approximately by a certain ratio relative to another unique feature along a given axis.
 
     Args:
-        feature (str): The name of the moved feature(s).
+        feature (str): The name of the moved feature.
         other_feature (str): The reference feature used to compute the movement.
         ratio (float): A positive ratio indicating the relative movement distance, when compared to the original distance between the two features.
         axis (Axis): Either "horizontal" or "vertical".
@@ -173,7 +173,7 @@ def position(feature: str, other_feature: str, ratio: float, axis: Axis) -> bool
 
 def angle(feature: str, degree: int) -> bool:
     """
-    Asserts that one or more features have been rotated by a specified angle.
+    Asserts that a feature has been rotated by a specified angle.
 
     Args:
         feature (str): The name of the feature.
@@ -193,62 +193,71 @@ def color(feature: str, expected_color: str) -> bool:
 
 def size(feature: str, ratio: Tuple[float, float]) -> bool:
     """
-    Asserts that one or multiple feature(s) have been resized by given scaling factors along x and y.
+    Asserts that a feature have been resized appoximately by given scaling factors along x and y.
 
     Args:
-        feature (str): The name of the resized feature(s).
+        feature (str): The name of the resized feature.
         ratio (Tuple[float, float]): Scaling factors applied to the feature’s width (x) and height (y), relative to its own original dimensions. 
     """
 
 def shape(feature: str, shape: str) -> bool:
     """
-    Asserts that one or more feature(s) looks like a certain shape.
+    Asserts that a feature looks like a certain shape.
 
     Args:
-        feature (str): The name of feature(s).
+        feature (str): The name of feature.
         shape (str): An open string describing the shape of the feature (square, triangle, ellipse,etc.).
     """
 
 def within(feature: str, other_feature: str) -> bool:
     """
-    Asserts that one or multiple features is/are contained in another unique feature.
+    Asserts that a feature is contained in another unique feature.
 
     Args:
-        feature (str): The name of the feature(s) contained in "other_feature".
+        feature (str): The name of the feature contained in "other_feature".
         other_feature (str): The name of the unique other feature that contains "feature".
     """
 
 def mirrored(feature: str, axis:Axis) -> bool:
     """
-    Asserts that one or multiple feature(s) is/are mirrored along an axis.
+    Asserts that a feature is mirrored along an axis.
 
     Args:
-        feature (str): The name of the feature(s).
+        feature (str): The name of the feature.
         axis (Axis): Either "horizontal" (left/right) or "vertical"(up/down).
 
     """
 
 def present(feature: str) -> bool:
     """
-    Asserts that a specific feature is present in the image.
+    Asserts that a feature is present in the image.
 
     Args:
         feature (str): The name of the feature present.
     """
     
-
 def aligned(feature: str, other_feature: str, axis:Axis) -> bool:
     """
-    Asserts that one or more feature(s) is/are aligned with one or more other feature(s) vertically or horizontally.
+    Asserts that a feature is aligned with another feature vertically or horizontally.
 
     Args:
         feature (str): The name of the first feature.
         other_feature (str): The name of the second feature.
         axis (Axis): Either "horizontal" or "vertical".
     """
+    
+def count(feature: str, amount:int) -> bool:
+    """
+    Asserts that a feature appears amount number of times.
+
+    Args:
+        feature (str): The name of the  feature.
+        amount (int): The number of times the feature appears.
+    """
+    
 ```
-TODO update this prompt
-All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle, and must be unambiguous unique features, for example, do not use "circle" if there are two circles in the image.
+All the parameters "feature" and "other_feature" are open strings, that can contain anything in the image that is relevant to the oracle, unless "unique" is used in the above specifications, the feature used can designate multiple instances.
+For example, if you use "circles" as a feature, every instance of a circle will be evaluated by the helper function used.
 You can give very detailed description of the feature you are searching for to make them unambiguous. When using these parameters, ensure the features are identifiable both in the initial and modified image.
 For example, if the instruction describes a color change, do not use the color as an attribute of the feature because it will not be the same in the modified image.
 You can use boolean operators such as "not", "and", and "or" for each type of condition, as well as intermediary variables. However you cannot use keywords like any() or all() 
@@ -317,7 +326,7 @@ Prompt: Make the ears in the shape of a square.
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-   return shape("left ear","square") and shape("right ear","square") 
+   return shape("ears","square") 
 ```
 
 ## Example 7
@@ -328,6 +337,16 @@ Expected output:
 ```python
 def test_valid_customization() -> bool:
    return present("nose") and within("nose","face") and shape("nose","square")
+```
+
+## Example 8
+Image (description): 5 black circles above a red square.
+Prompt: change the color fo the black circles to blue and move them upward by a ratio of 2 w.r.t. the red square.
+
+Expected output:
+```python
+def test_valid_customization() -> bool:
+   return color("circles","blue") and position("circles","red square",ratio=2.0, axis="vertical")
 ```
 '''
 
@@ -345,7 +364,7 @@ def visual_property(property:str) -> bool:
 ```
 
 This function can be used the same way as the other helper functions, for example:
-## Example 8
+## Example 9
 Image (description): A drawing of a person.
 Prompt: Make the person look scared.
 

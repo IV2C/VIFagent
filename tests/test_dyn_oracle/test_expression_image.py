@@ -6,6 +6,7 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     angle,
     aligned,
     color,
+    count,
     mirrored,
     placement,
     position,
@@ -1891,5 +1892,119 @@ class TestExpression(unittest.TestCase):
             [
                 f"The feature circleB should be aligned {axis}ly w.r.t. the feature square and circle."
             ],
+            feedback,
+        )
+
+    # Count
+
+    def test_count_valid(self):
+
+        feat_dict = {
+            hash((self.custom_image.tobytes(), "circles")): [
+                BoundingBox(1,1,1,1, "circleA"),
+                BoundingBox(1,1,1,1, "circleB"),
+            ]
+        }
+
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
+
+        def test_valid_customization() -> bool:
+            return count("circles", 2)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image=self.original_image,
+            box_function=get_features,
+            custom_image=self.custom_image,
+            segment_function=get_features,
+        )
+        self.assertTrue(result)
+        self.assertEqual(
+            [],
+            feedback,
+        )
+
+    def test_count_invalid(self):
+
+        feat_dict = {
+            hash((self.custom_image.tobytes(), "circles")): [
+                BoundingBox(1,1,1,1, "circleA"),
+                BoundingBox(1,1,1,1, "circleB"),
+            ]
+        }
+
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
+
+        def test_valid_customization() -> bool:
+            return count("circles", 5)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image=self.original_image,
+            box_function=get_features,
+            custom_image=self.custom_image,
+            segment_function=get_features,
+        )
+        self.assertFalse(result)
+        self.assertEqual(
+            ["The number of circles is 2, but should be 5."],
+            feedback,
+        )
+        
+    def test_count_negated_valid(self):
+
+        feat_dict = {
+            hash((self.custom_image.tobytes(), "circles")): [
+                BoundingBox(1,1,1,1, "circleA"),
+                BoundingBox(1,1,1,1, "circleB"),
+            ]
+        }
+
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
+
+        def test_valid_customization() -> bool:
+            return ~count("circles", 3)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image=self.original_image,
+            box_function=get_features,
+            custom_image=self.custom_image,
+            segment_function=get_features,
+        )
+        self.assertTrue(result)
+        self.assertEqual(
+            [],
+            feedback,
+        )
+        
+    def test_count_negated_invalid(self):
+
+        feat_dict = {
+            hash((self.custom_image.tobytes(), "circles")): [
+                BoundingBox(1,1,1,1, "circleA"),
+                BoundingBox(1,1,1,1, "circleB"),
+            ]
+        }
+
+        def get_features(feature: str, image: Image.Image):
+            return feat_dict[hash((image.tobytes(), feature))]
+
+        def test_valid_customization() -> bool:
+            return ~count("circles", 2)
+
+        expression: OracleExpression = test_valid_customization()
+        result, feedback = expression.evaluate(
+            original_image=self.original_image,
+            box_function=get_features,
+            custom_image=self.custom_image,
+            segment_function=get_features,
+        )
+        self.assertFalse(result)
+        self.assertEqual(
+            ["The number of circles should not be 2."],
             feedback,
         )
