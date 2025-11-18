@@ -19,8 +19,8 @@ class OracleResponse:
     seg_token_usage: dict = None
     box_token_usage: dict = None
     prop_token_usage: dict = None
-    boxes:list[BoundingBox] = []
-    segments:list[SegmentationMask] = []
+    boxes:list[BoundingBox] = None
+    segments:list[SegmentationMask] = None
 
 
 class OracleModule(LLMmodule):

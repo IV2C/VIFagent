@@ -197,7 +197,9 @@ class present(OracleCondition):
     def __invert__(self):
         return removed(self.feature)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         boxes = box_function([self.feature], custom_image)
 
         condition = any(box != None and box.box_prob >= 0.6 for box in boxes)
@@ -218,7 +220,9 @@ class removed(OracleCondition):
     def __invert__(self):
         return present(self.feature)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         boxes = box_function([self.feature], custom_image)
 
         condition = all(box != None and box.box_prob < 0.6 for box in boxes)
@@ -348,7 +352,9 @@ class placement(OracleCondition):
 
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         boxes_featA = box_function(self.feature, custom_image)
         boxes_featB = box_function(self.other_feature, custom_image)
 
@@ -381,7 +387,9 @@ class position(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         original_boxes_featA = box_function(self.feature, original_image)
 
         original_box_featB = box_function(self.other_feature, original_image)[0]
@@ -510,7 +518,9 @@ class angle(OracleCondition):
 
         return (condition, feedback)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         ori_segs = segment_function(self.feature, original_image)
 
         custom_segs = segment_function(self.feature, custom_image)
@@ -590,7 +600,9 @@ class color(OracleCondition):
 
         return (condition, feedback)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         cust_features = segment_function(self.feature, custom_image)
 
         custom_colors_counts = [
@@ -673,7 +685,9 @@ class size(OracleCondition):
 
             return (condition, feedback)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
 
         ori_features = box_function(self.feature, original_image)
         cust_features = box_function(self.feature, custom_image)
@@ -743,7 +757,9 @@ class shape(OracleCondition):
 
         return (condition, feedback)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         cust_features = segment_function(self.feature, custom_image)
         mask_images = [
             (Image.fromarray(cust_feature.mask), cust_feature.label)
@@ -786,7 +802,9 @@ class within(OracleCondition):
             feedback = f"The {segA.label} should not be contained in the feature {segB.label}, but is actually within it."
         return (condition, feedback)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         custom_segs_featA = segment_function(self.feature, custom_image)
 
         custom_seg_featB = segment_function(self.other_feature, custom_image)[0]
@@ -852,7 +870,9 @@ class mirrored(OracleCondition):
 
         return (condition, feedback)
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         ori_segs = segment_function(self.feature, original_image)
         custom_segs = segment_function(self.feature, custom_image)
 
@@ -890,7 +910,9 @@ class aligned(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         custom_boxes_featA = box_function(self.feature, custom_image)
         custom_boxes_featB = box_function(self.other_feature, custom_image)
 
@@ -952,7 +974,9 @@ class count(OracleCondition):
         self.negated = True
         return self
 
-    def evaluate(self, *, original_image, custom_image, segment_function, box_function):
+    def evaluate(
+        self, *, original_image, custom_image, segment_function, box_function, **kwargs
+    ):
         custom_boxes_feat = box_function(self.feature, custom_image)
         condition = len(custom_boxes_feat) == self.amount
 

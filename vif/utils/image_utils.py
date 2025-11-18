@@ -577,10 +577,10 @@ def crop_image_with_box(image: Image.Image, box):
 from PIL import ImageColor, ImageFont, ImageDraw
 import numpy as np
 
-from vif.models.detection import SegmentationMask
+from vif.models.detection import BoundingBox, SegmentationMask
 
 
-def plot_segmentation_masks(img: Image, segmentation_masks: list[SegmentationMask]):
+def plot_segmentation_masks(img: Image, segmentation_masks: list[SegmentationMask | BoundingBox]):
     """
     Plots bounding boxes on an image with markers for each a name, using PIL, normalized coordinates, and different colors.
 
@@ -620,9 +620,10 @@ def plot_segmentation_masks(img: Image, segmentation_masks: list[SegmentationMas
     # Do this in 3 passes to make sure the boxes and text are always visible.
 
     # Overlay the mask
-    for i, mask in enumerate(segmentation_masks):
-        color = colors[i % len(colors)]
-        img = overlay_mask_on_img(img, mask.mask, color)
+    if isinstance(segmentation_masks[0],SegmentationMask):
+        for i, mask in enumerate(segmentation_masks):
+            color = colors[i % len(colors)]
+            img = overlay_mask_on_img(img, mask.mask, color)
 
     # Create a drawing object
     draw = ImageDraw.Draw(img)
