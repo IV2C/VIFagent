@@ -200,9 +200,9 @@ class present(OracleCondition):
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
-        boxes = box_function([self.feature], custom_image)
+        boxes = box_function(self.feature, custom_image)
 
-        condition = any(box != None and box.box_prob >= 0.6 for box in boxes)
+        condition = len(boxes)>0 and any(box != None and box.box_prob >= 0.3 for box in boxes)
         return (
             condition,
             (
@@ -223,9 +223,9 @@ class removed(OracleCondition):
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
-        boxes = box_function([self.feature], custom_image)
+        boxes = box_function(self.feature, custom_image)
 
-        condition = all(box != None and box.box_prob < 0.6 for box in boxes)
+        condition = len(boxes)>0 and all(box != None and box.box_prob < 0.3 for box in boxes)
 
         return (
             condition,
@@ -358,6 +358,12 @@ class placement(OracleCondition):
         boxes_featA = box_function(self.feature, custom_image)
         boxes_featB = box_function(self.other_feature, custom_image)
 
+        if len(boxes_featA)==0:
+            return (False, f"No feature {self.feature} was detected")
+        if len(boxes_featB) ==0:
+            return (False, f"No feature {self.other_feature} was detected")
+        
+        
         label_centers_boxA = [
             (box_featA.label, get_box_center(box_featA)) for box_featA in boxes_featA
         ]
@@ -392,11 +398,23 @@ class position(OracleCondition):
     ):
         original_boxes_featA = box_function(self.feature, original_image)
 
-        original_box_featB = box_function(self.other_feature, original_image)[0]
+        original_boxes_featB = box_function(self.other_feature, original_image)[0]
 
         custom_boxes_featA = box_function(self.feature, custom_image)
-        custom_box_featB = box_function(self.other_feature, custom_image)[0]
+        custom_boxes_featB = box_function(self.other_feature, custom_image)[0]
 
+        if len(original_boxes_featA)==0:
+            return (False, f"No feature {self.feature} was detected in the original image")
+        if len(original_boxes_featB) ==0:
+            return (False, f"No feature {self.other_feature} was detected in the original image")
+        if len(custom_boxes_featA)==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        if len(custom_boxes_featB) ==0:
+            return (False, f"No feature {self.other_feature} was detected in the customized image")
+        
+        
+        original_box_featB = original_boxes_featB[0]
+        custom_box_featB = custom_boxes_featB[0]
         # keeping only the A features with the most similar names between original and modified
         feature_correspondance = get_corresponding_features_detections(
             original_boxes_featA, custom_boxes_featA

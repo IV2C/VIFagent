@@ -132,7 +132,7 @@ def get_bounding_boxes(
             ],
         ),
     ]
-    logger.info(DETECTION_PROMPT)
+    logger.info(genTypes.Part.from_text(text=DETECTION_PROMPT.format(label=feature)))
 
     token_data = []
     for attempt_nb in range(SEGMENTATION_ATTEMPTS):
@@ -159,7 +159,7 @@ def get_bounding_boxes(
             )
             log_and_append_token_data(token_data, res_meta, error_msg)
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
-                raise ParsingError(error_msg)
+                raise ParsingError(error_msg, token_data=token_data)
             continue
 
         id_match = re.search(pattern, response.text)
@@ -169,8 +169,9 @@ def get_bounding_boxes(
             error_msg = f"Error while parsing :{response.text}"
 
             log_and_append_token_data(token_data, res_meta, error_msg)
+
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
-                raise ParsingError(error_msg)
+                raise ParsingError(error_msg, token_data=token_data)
             continue
 
         ## handling json decoding error ##
@@ -182,7 +183,8 @@ def get_bounding_boxes(
             log_and_append_token_data(token_data, res_meta, error_msg)
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
                 raise JsonFormatError(
-                    f"Error while decoding the json {json_res} : {jde}"
+                    f"Error while decoding the json {json_res} : {jde}",
+                    token_data=token_data,
                 )
             continue
 
@@ -192,6 +194,7 @@ def get_bounding_boxes(
         except InvalidMasksError as ime:
             log_and_append_token_data(token_data, res_meta, str(ime))
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
+                ime.token_data = token_data
                 raise ime
             attempt_nb += 1
             continue
@@ -268,7 +271,7 @@ def get_segmentation_masks(
             )
             log_and_append_token_data(token_data, res_meta, error_msg)
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
-                raise ParsingError(error_msg)
+                raise ParsingError(error_msg, token_data=token_data)
             continue
 
         id_match = re.search(pattern, response.text)
@@ -279,7 +282,7 @@ def get_segmentation_masks(
 
             log_and_append_token_data(token_data, res_meta, error_msg)
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
-                raise ParsingError(error_msg)
+                raise ParsingError(error_msg, token_data=token_data)
             continue
 
         ## handling json decoding error ##
@@ -291,7 +294,7 @@ def get_segmentation_masks(
             log_and_append_token_data(token_data, res_meta, error_msg)
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
                 raise JsonFormatError(
-                    f"Error while decoding the json {json_res} : {jde}"
+                    f"Error while decoding the json {json_res} : {jde}", token_data=token_data
                 )
             continue
 
@@ -301,6 +304,7 @@ def get_segmentation_masks(
         except InvalidMasksError as ime:
             log_and_append_token_data(token_data, res_meta, str(ime))
             if attempt_nb == SEGMENTATION_ATTEMPTS - 1:
+                ime.token_data=token_data
                 raise ime
             attempt_nb += 1
             continue
@@ -438,4 +442,3 @@ def dsim_box(
         box_image_map.append(sorted_mse_map)
 
     return box_image_map
-

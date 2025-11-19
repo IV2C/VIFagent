@@ -11,6 +11,7 @@ from PIL import Image
 import hashlib
 
 from vif.models.detection import BoundingBox, SegmentationMask
+from vif.models.exceptions import JsonFormatError, LLMDetectionException, ParsingError
 from vif.prompts.oracle_prompts import (
     ORACLE_CODE_PROMPT,
     ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
@@ -185,32 +186,44 @@ class OracleGuidedCodeModule(OracleModule):
 
     def box_from_feature(self, feature: str, image: Image.Image) -> list[BoundingBox]:
 
-        boxes, token_usage = get_bounding_boxes(
-            image, self.visual_client, feature, self.box_model, enable_logprob=True
-        )
+        try:
+            boxes, token_usage = get_bounding_boxes(
+                image, self.visual_client, feature, self.box_model, enable_logprob=True
+            )
+            # parsing errors and jsonFormatErrors are considered as failures to identify
+            # other errors are considered full failures
+        except (ParsingError,JsonFormatError) as pe:
+            boxes = []
+            token_usage = pe.token_data
+
         self.box_usage[feature + str(hashlib.sha1(image.tobytes()).hexdigest())] = (
             token_usage
         )
 
         self.identified_boxes.extend(boxes)
-        
+
         return boxes
 
     def segments_from_feature(
         self, feature: str, image: Image.Image
     ) -> list[SegmentationMask]:
-
-        segs, token_usage = get_segmentation_masks(
-            image,
-            self.visual_client,
-            feature,
-            self.segmentation_model,
-            enable_logprob=False,
-        )
+        try:
+            segs, token_usage = get_segmentation_masks(
+                image,
+                self.visual_client,
+                feature,
+                self.segmentation_model,
+                enable_logprob=False,
+            )
+            # parsing errors and jsonFormatErrors are considered as failures to identify
+            # other errors are considered full failures
+        except (ParsingError,JsonFormatError) as pe:
+            segs = []
+            token_usage = pe.token_data
         self.segmentation_usage[
             feature + str(hashlib.sha1(image.tobytes()).hexdigest())
         ] = token_usage
-        
+
         self.identified_boxes.extend(segs)
 
         return segs

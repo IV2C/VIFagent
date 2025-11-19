@@ -59,13 +59,19 @@ class FalconVerifier(TexVerBaseline):
         }
 
     def assess_customization(self, ver_eval_input):
-
-        oracle, metrics = self.oracle_module.get_oracle(
-            ver_eval_input.initial_instruction, ver_eval_input.initial_image
-        )
-        ver_eval_input.usage_metadata[f"oracle_generation"] = [metrics]
-
-        or_response = oracle(ver_eval_input.initial_solution_image)
+        try:
+            oracle, metrics = self.oracle_module.get_oracle(
+                ver_eval_input.initial_instruction, ver_eval_input.initial_image
+            )
+            ver_eval_input.usage_metadata[f"oracle_generation"] = [metrics]
+        except Exception as e:
+            ver_eval_input.errors["oracle_gen"] = [str(e)]
+            return ver_eval_input
+        
+        try:
+            or_response = oracle(ver_eval_input.initial_solution_image)
+        except Exception as e:
+            ver_eval_input.errors["oracle_exec"] = [str(e)]
 
         ver_eval_input.classified = or_response.condition
 
@@ -78,5 +84,7 @@ class FalconVerifier(TexVerBaseline):
         ver_eval_input.usage_metadata[f"segmentation"] = or_response.seg_token_usage
         ver_eval_input.usage_metadata[f"box"] = or_response.box_token_usage
         ver_eval_input.usage_metadata[f"property"] = or_response.prop_token_usage
+
+        ver_eval_input.errors
 
         return ver_eval_input
