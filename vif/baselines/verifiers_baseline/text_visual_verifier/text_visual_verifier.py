@@ -11,7 +11,7 @@ You will be given the initial code, the customized code, both images(correspondi
 Your response must always contain the final answer in the format:
 \\boxed{score}
 
-With score being a score between 0 and 1.
+With score being a float between 0 and 1.
 0.0 => not applied at all.
 1.0 => Perfectly applied.
 """

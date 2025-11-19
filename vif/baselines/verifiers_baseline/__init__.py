@@ -6,6 +6,7 @@ from .visual_properties_verifiers.visual_property_verifier import VisualProperti
 from .visual_verifier.visual_verifier import VisualVerifier
 from .visual_verifier_code.visual_verifier_code import VisualCodeVerifier
 from .pico_banana_verifier.pico_banana_verifier import PicoBananaVerifier
+from .clip_diff_verifier.clip_diff_verifier import ClipSimVerifier
 
 __all__ = [
     "FalconVerifier",
@@ -16,4 +17,5 @@ __all__ = [
     "VisualVerifier",
     "VisualCodeVerifier",
     "PicoBananaVerifier"
+    "ClipSimVerifier"
 ]
