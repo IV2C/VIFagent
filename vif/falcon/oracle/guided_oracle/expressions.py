@@ -359,9 +359,9 @@ class placement(OracleCondition):
         boxes_featB = box_function(self.other_feature, custom_image)
 
         if len(boxes_featA)==0:
-            return (False, f"No feature {self.feature} was detected")
+            return (False, f"No feature {self.feature} was detected in the customized image")
         if len(boxes_featB) ==0:
-            return (False, f"No feature {self.other_feature} was detected")
+            return (False, f"No feature {self.other_feature} was detected in the customized image")
         
         
         label_centers_boxA = [
@@ -542,6 +542,14 @@ class angle(OracleCondition):
         ori_segs = segment_function(self.feature, original_image)
 
         custom_segs = segment_function(self.feature, custom_image)
+        
+        
+        if len(ori_segs)==0:
+            return (False, f"No feature {self.feature} was detected in the original image")
+        if len(custom_segs) ==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        
+        
         feature_correspondance = get_corresponding_features_detections(
             ori_segs, custom_segs
         )
@@ -623,6 +631,10 @@ class color(OracleCondition):
     ):
         cust_features = segment_function(self.feature, custom_image)
 
+        if len(cust_features)==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        
+        
         custom_colors_counts = [
             self.get_feature_colors(seg, custom_image) for seg in cust_features
         ]
@@ -710,6 +722,11 @@ class size(OracleCondition):
         ori_features = box_function(self.feature, original_image)
         cust_features = box_function(self.feature, custom_image)
 
+        if len(ori_features)==0:
+            return (False, f"No feature {self.feature} was detected in the original image")
+        if len(cust_features) ==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        
         feature_correspondance = get_corresponding_features_detections(
             ori_features, cust_features
         )
@@ -779,6 +796,9 @@ class shape(OracleCondition):
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         cust_features = segment_function(self.feature, custom_image)
+        if len(cust_features)==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        
         mask_images = [
             (Image.fromarray(cust_feature.mask), cust_feature.label)
             for cust_feature in cust_features
@@ -827,6 +847,12 @@ class within(OracleCondition):
 
         custom_seg_featB = segment_function(self.other_feature, custom_image)[0]
 
+        if len(custom_segs_featA)==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        if len(custom_seg_featB) ==0:
+            return (False, f"No feature {self.other_feature} was detected in the customized image")
+        
+        
         cond_feed = [
             self.check_within(segA, custom_seg_featB) for segA in custom_segs_featA
         ]
@@ -894,6 +920,12 @@ class mirrored(OracleCondition):
         ori_segs = segment_function(self.feature, original_image)
         custom_segs = segment_function(self.feature, custom_image)
 
+        if len(ori_segs)==0:
+            return (False, f"No feature {self.feature} was detected in the original image")
+        if len(custom_segs) ==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        
+        
         feature_correspondance = get_corresponding_features_detections(
             ori_segs, custom_segs
         )
@@ -933,7 +965,12 @@ class aligned(OracleCondition):
     ):
         custom_boxes_featA = box_function(self.feature, custom_image)
         custom_boxes_featB = box_function(self.other_feature, custom_image)
-
+        
+        if len(custom_boxes_featA)==0:
+            return (False, f"No feature {self.feature} was detected in the customized image")
+        if len(custom_boxes_featB) ==0:
+            return (False, f"No feature {self.other_feature} was detected in the customized image")
+        
         box_center_boxes = [
             (box, get_box_center(box))
             for box in custom_boxes_featA + custom_boxes_featB
