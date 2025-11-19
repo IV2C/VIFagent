@@ -71,7 +71,7 @@ class VerEvaluation(BaseModel):
     # expected and actual output
     expected: bool
     #####Set by the call#####
-    classified: bool = None
+    classified_score: float = None
     # if failing
     failed: bool = False
     retries: int = 0

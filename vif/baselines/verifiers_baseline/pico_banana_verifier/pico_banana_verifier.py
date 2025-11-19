@@ -50,14 +50,12 @@ class PicoBananaVerifier(TexVerBaseline):
         model,
         client: Client,
         temperature,
-        threshold: float = 0.9,
         **kwargs,
     ):
 
         self.model = model
         self.client = client
         self.temperature = temperature
-        self.threshold = threshold
 
         super().__init__(*args, **kwargs)
 
@@ -66,7 +64,6 @@ class PicoBananaVerifier(TexVerBaseline):
             "name": "PicoBananaVerifier",
             "model": self.model,
             "temperature": self.temperature,
-            "threshold": self.threshold,
         }
 
     def assess_customization(self, ver_eval_input):
@@ -119,8 +116,7 @@ class PicoBananaVerifier(TexVerBaseline):
             )
             return ver_eval_input
 
-        condition = float(id_match.group(1)) > self.threshold
-        ver_eval_input.classified = condition
+        ver_eval_input.classified_score = float(id_match.group(1))
         ver_eval_input.usage_metadata = {"Base": [response.usage]}
 
         return ver_eval_input

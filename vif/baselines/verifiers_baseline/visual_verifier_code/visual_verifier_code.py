@@ -29,9 +29,11 @@ Ensure the code is executable, and there are no errors in it.
 Your goal is to verify, by using Python code, whether the instruction has been correctly applied.
 You must always call eval code.
 Your final response must always contain the final answer in the format:
-\\boxed{True} or \\boxed{False}
+\\boxed{score}
 
-Answer with True when the instruction is perfectly applied, False when it is not.
+With score being a score between 0 and 1.
+0.0 => not applied at all.
+1.0 => Perfectly applied.
 """
 
 IMAGE_CODE_VERIFY_PROMPT: str = """
@@ -171,7 +173,7 @@ class VisualCodeVerifier(TexVerBaseline):
             return ver_eval_input
 
         cnt = final_response.choices[0].message.content
-        pattern = r"\\boxed{(True|False)}"
+        pattern = r"\\boxed{([0-1]\.?[0-9]?)}"
         id_match = re.search(pattern, cnt)
 
         if not id_match:
@@ -180,8 +182,8 @@ class VisualCodeVerifier(TexVerBaseline):
             )
             return ver_eval_input
 
-        condition = id_match.group(1) == "True"
-        ver_eval_input.classified = condition
+        ver_eval_input.classified_score = float(id_match.group(1))
+
         ver_eval_input.usage_metadata = {"Base": [response.usage, final_response.usage]}
 
         return ver_eval_input

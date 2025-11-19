@@ -13,11 +13,12 @@ class ClipSimVerifier(TexVerBaseline):
         self._clip_preprocess = preprocess
         self._clip_tokenizer = open_clip.get_tokenizer("ViT-B-32")
 
-        self.threshold = 0.98
         super().__init__(*args, **kwargs)
     def get_config_metadata(self):
         return {
-            "name": "ClipSimVerifier"
+            "name": "ClipSimVerifier",
+            "model_name":"ViT-B-32",
+            "pretrained_name":"laion2b_s34b_b79k"
         }
     def assess_customization(self, ver_eval_input):
         perfect = self._clip_preprocess(
@@ -35,7 +36,7 @@ class ClipSimVerifier(TexVerBaseline):
 
             similarity = (solution_image_features @ perfect_image_features.T).squeeze()
         
-        ver_eval_input.classified = similarity>self.threshold
+        ver_eval_input.classified_score = similarity
         
         return ver_eval_input
         

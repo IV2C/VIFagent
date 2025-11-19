@@ -82,5 +82,5 @@ class ViperGPTVerifier(TexVerBaseline):
         ver_eval_input.additional_metadata = asdict(metadata)
         ver_eval_input.usage_metadata = {"Base": [response.usage]}
 
-        ver_eval_input.classified = condition
+        ver_eval_input.classified_score = 1.0 if condition else 0.0
         return ver_eval_input

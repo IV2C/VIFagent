@@ -35,12 +35,17 @@ You will be given two concatenated images (first = original, second = modified),
 Your task is to determine whether the specified property has been applied to the second image.
 
 Your response must always contain the final answer in the format:
-\\boxed{True} or \\boxed{False}
+\\boxed{score}
+
+With score being a score between 0 and 1.
+0.0 => not applied at all.
+1.0 => Perfectly applied.
 """
 PROPERTY_EVALUATION_PROMPT: str = """
 Property to verify:
 {property}
 """
+import statistics
 
 
 class VisualPropertiesVerifierMetadata(BaseModel):
@@ -137,14 +142,15 @@ class VisualPropertiesVerifier(TexVerBaseline):
             raise RequestException(messages=messages, wrapped_exception=e)
 
         cnt = response.choices[0].message.content
-        pattern = r"\\boxed{(True|False)}"
+        pattern = r"\\boxed{([0-1]\.?[0-9]?)}"
         id_match = re.search(pattern, cnt)
 
         if not id_match:
             raise RegexException(pattern=pattern, content=cnt)
 
-        condition = id_match.group(1) == "True"
-        return condition, response.usage
+        res_score = float(id_match.group(1))
+        return res_score, response.usage
+
 
     def assess_customization(self, ver_eval_input):
         ver_eval_input.errors["property_generation"] =[]
@@ -173,11 +179,11 @@ class VisualPropertiesVerifier(TexVerBaseline):
             ver_eval_input.errors["property_check"].append(e.json_dump())
             return ver_eval_input
 
-        conditions = [cond for cond, _ in conditions_res]
+        scores = [score for score, _ in conditions_res]
         property_check_usages = [usage for _, usage in conditions_res]
-        ver_eval_input.classified = all(conditions)
+        ver_eval_input.classified_score = statistics.mean(scores)
 
-        prop_metadata.properties_eval = [conditions]
+        prop_metadata.properties_eval = [scores]
 
         ver_eval_input.usage_metadata = {
             "property_gen": [property_usage],

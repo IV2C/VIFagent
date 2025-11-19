@@ -73,7 +73,7 @@ class FalconVerifier(TexVerBaseline):
         except Exception as e:
             ver_eval_input.errors["oracle_exec"] = [str(e)]
 
-        ver_eval_input.classified = or_response.condition
+        ver_eval_input.classified_score = 1.0 if or_response.condition else 0.0
 
         fal_metadata = FalconVerifierMetadata(
             generated_code=or_response.evaluation_code,

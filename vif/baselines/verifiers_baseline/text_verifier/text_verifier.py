@@ -8,9 +8,11 @@ You are a verification agent, your task is to assess whether a code applied a gi
 You will be given the initial code, the customized code, and the instruction.
 
 Your response must always contain the final answer in the format:
-\\boxed{True} or \\boxed{False}
+\\boxed{score}
 
-Answer with True when the instruction is perfectly applied, False when it is not.
+With score being a score between 0 and 1.
+0.0 => not applied at all.
+1.0 => Perfectly applied.
 """
 
 TEXT_VERIFY_PROMPT: str = """
@@ -77,15 +79,14 @@ class TextVerifier(TexVerBaseline):
 
         cnt = response.choices[0].message.content
         ver_eval_input.additional_metadata["response_content"] = cnt
-        pattern = r"\\boxed{(True|False)}"
+        pattern = r"\\boxed{([0-1]\.?[0-9]?)}"
         id_match = re.search(pattern, cnt)
 
         if not id_match:
             ver_eval_input.errors["base"].append(RegexException(pattern=pattern, content=cnt).json_dump())
             return ver_eval_input
 
-        condition = id_match.group(1) == "True"
-        ver_eval_input.classified = condition
+        ver_eval_input.classified_score = float(id_match.group(1))
 
         # token usage:
         ver_eval_input.usage_metadata = {"Base": [response.usage]}
