@@ -75,10 +75,38 @@ class VerEvaluation(BaseModel):
     # if failing
     failed: bool = False
     retries: int = 0
-    errors: dict[str, list[str]] = {}  # PROBELM TEHRE
+    errors: dict[str, list[str]] = {}
     # Contains data specific to the approach(number of tool calls, code generation errors, etc)
     additional_metadata: dict = {}
     usage_metadata: dict[str, list[CompletionUsage]] = (
         dict()
     )  # mapping between model config/usage and token usages
     theoretical_perfect_image: Image = None
+
+
+### corresponding hg features
+
+import datasets
+
+VerEval_Features = datasets.Features(
+    {
+        "id": datasets.Value("string"),
+        "approach_name": datasets.Value("string"),
+        "config_metadata": datasets.Value("string"),
+        "initial_code": datasets.Value("string"),
+        "initial_image": datasets.Image(),
+        "initial_instruction": datasets.Value("string"),
+        "initial_solution": datasets.Value("string"),
+        "initial_solution_image": datasets.Image(),
+        "expected": datasets.Value("bool"),
+        "classified_score": datasets.Value("float64"),
+        "failed": datasets.Value("bool"),
+        "retries": datasets.Value("int64"),
+        "try": datasets.Value("int64"),
+        "index": datasets.Value("int64"),
+        "errors": datasets.Value("string"),
+        "additional_metadata": datasets.Value("string"),
+        "usage_metadata": datasets.Value("string"),
+        "theoretical_perfect_image": datasets.Image(),
+    }
+)

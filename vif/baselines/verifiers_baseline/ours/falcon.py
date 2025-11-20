@@ -1,11 +1,16 @@
 from dataclasses import asdict, dataclass
+from typing import Any
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 from vif.falcon.oracle.guided_oracle.guided_code_oracle import OracleGuidedCodeModule
+from vif.models.detection import BoundingBox,SegmentationMask
 
 
 @dataclass
 class FalconVerifierMetadata:
     generated_code: str
+    feedback:str
+    boxes:list[BoundingBox]
+    segments:list[dict]#will be a SegmentationMask without the mask
 
 
 class FalconVerifier(TexVerBaseline):
@@ -75,9 +80,18 @@ class FalconVerifier(TexVerBaseline):
 
         ver_eval_input.classified_score = 1.0 if or_response.condition else 0.0
 
+        
+        new_segmasks=[]
+        for mask in or_response.segments:
+            d_mask = asdict(mask)
+            d_mask.pop("mask")
+            new_segmasks.append(d_mask)
+        
         fal_metadata = FalconVerifierMetadata(
             generated_code=or_response.evaluation_code,
             feedback=or_response.feedbacks,
+            boxes=or_response.boxes,
+            segments=new_segmasks
         )
         ver_eval_input.additional_metadata = asdict(fal_metadata)
 
