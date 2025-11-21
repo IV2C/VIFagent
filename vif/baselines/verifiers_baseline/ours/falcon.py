@@ -3,14 +3,15 @@ from typing import Any
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 from vif.falcon.oracle.guided_oracle.guided_code_oracle import OracleGuidedCodeModule
 from vif.models.detection import BoundingBox,SegmentationMask
-
+import inspect
+import traceback
 
 @dataclass
 class FalconVerifierMetadata:
-    generated_code: str
-    feedback:str
-    boxes:list[BoundingBox]
-    segments:list[dict]#will be a SegmentationMask without the mask
+    generated_code: str = None
+    feedback:str = None
+    boxes:list[BoundingBox] = None
+    segments:list[dict] = None#will be a SegmentationMask without the mask 
 
 
 class FalconVerifier(TexVerBaseline):
@@ -42,7 +43,7 @@ class FalconVerifier(TexVerBaseline):
             client=oclient,
             model=oracle_gen_model,
             temperature=oracle_gen_model_temperature,
-            visual_client=oclient,
+            visual_client=gclient,
             box_model=box_model,
             segmentation_model=segmentation_model,
             property_client=oclient,
@@ -54,7 +55,7 @@ class FalconVerifier(TexVerBaseline):
 
     def get_config_metadata(self):
         return {
-            "name": "Falcon",
+            "name": "ours",
             "oracle_gen_model": self.oracle_gen_model,
             "oracle_gen_model_temperature": self.oracle_gen_model_temperature,
             "box_model": self.box_model,
@@ -64,22 +65,26 @@ class FalconVerifier(TexVerBaseline):
         }
 
     def assess_customization(self, ver_eval_input):
+        
+        fal_metadata = FalconVerifierMetadata()
         try:
-            oracle, metrics = self.oracle_module.get_oracle(
+            oracle, metrics,oracle_code = self.oracle_module.get_oracle(
                 ver_eval_input.initial_instruction, ver_eval_input.initial_image
             )
             ver_eval_input.usage_metadata[f"oracle_generation"] = [metrics]
+            ver_eval_input.additional_metadata = {"generated_code":oracle_code}
         except Exception as e:
-            ver_eval_input.errors["oracle_gen"] = [str(e)]
+            ver_eval_input.errors["oracle_gen"] = [traceback.extract_stack()]
             return ver_eval_input
         
         try:
             or_response = oracle(ver_eval_input.initial_solution_image)
         except Exception as e:
             ver_eval_input.errors["oracle_exec"] = [str(e)]
+            return ver_eval_input
+
 
         ver_eval_input.classified_score = 1.0 if or_response.condition else 0.0
-
         
         new_segmasks=[]
         for mask in or_response.segments:
@@ -98,7 +103,5 @@ class FalconVerifier(TexVerBaseline):
         ver_eval_input.usage_metadata[f"segmentation"] = or_response.seg_token_usage
         ver_eval_input.usage_metadata[f"box"] = or_response.box_token_usage
         ver_eval_input.usage_metadata[f"property"] = or_response.prop_token_usage
-
-        ver_eval_input.errors
 
         return ver_eval_input

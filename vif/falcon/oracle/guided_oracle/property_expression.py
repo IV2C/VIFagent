@@ -1,16 +1,7 @@
-# Property condition => call to other llm to check property applied on the image
-
-# TODO
 from collections.abc import Callable
-import re
-from vif.baselines.models import RegexException
 from vif.falcon.oracle.guided_oracle.expressions import OracleExpression
-from loguru import logger
-from openai import Client
 from PIL import Image
 
-from vif.prompts.property_check_prompt import PROPERTY_PROMPT
-from vif.utils.image_utils import concat_images_horizontally, encode_image
 
 
 class visual_property(OracleExpression):

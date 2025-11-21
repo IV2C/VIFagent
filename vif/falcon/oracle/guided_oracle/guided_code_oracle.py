@@ -182,7 +182,7 @@ class OracleGuidedCodeModule(OracleModule):
                 segments=self.identified_segments,
             )
 
-        return oracle, res_usage
+        return oracle, res_usage,oracle_code
 
     def box_from_feature(self, feature: str, image: Image.Image) -> list[BoundingBox]:
 
@@ -224,7 +224,7 @@ class OracleGuidedCodeModule(OracleModule):
             feature + str(hashlib.sha1(image.tobytes()).hexdigest())
         ] = token_usage
 
-        self.identified_boxes.extend(segs)
+        self.identified_segments.extend(segs)
 
         return segs
 

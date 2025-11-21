@@ -215,7 +215,6 @@ def get_bounding_boxes(
     return (bounding_boxes, token_data)
 
 
-# @CachedRequest(full_seg_cache, key_function, True)#TODO fix
 def get_segmentation_masks(
     image: Image.Image,
     client: genai.Client,
