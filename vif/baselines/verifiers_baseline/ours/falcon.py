@@ -74,13 +74,13 @@ class FalconVerifier(TexVerBaseline):
             ver_eval_input.usage_metadata[f"oracle_generation"] = [metrics]
             ver_eval_input.additional_metadata = {"generated_code":oracle_code}
         except Exception as e:
-            ver_eval_input.errors["oracle_gen"] = [traceback.extract_stack()]
+            ver_eval_input.errors["oracle_gen"] = [traceback.format_exc()]
             return ver_eval_input
         
         try:
             or_response = oracle(ver_eval_input.initial_solution_image)
         except Exception as e:
-            ver_eval_input.errors["oracle_exec"] = [str(e)]
+            ver_eval_input.errors["oracle_exec"] = [traceback.format_exc()]
             return ver_eval_input
 
 

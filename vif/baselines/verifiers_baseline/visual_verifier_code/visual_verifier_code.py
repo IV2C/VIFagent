@@ -1,5 +1,6 @@
 import json
 import re
+import traceback
 from openai import Client
 from vif.baselines.models import CodeExecException, RegexException, RequestException
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
@@ -8,7 +9,7 @@ from vif.utils.image_utils import concat_images_horizontally, encode_image
 
 IMAGE_CODE_VERIFY_SYSTEM_PROMPT: str = """
 You are a verification agent. Your task is to determine whether a given customization instruction has been correctly applied to an image.
-You will be given the initial and customized images, and the instruction.
+You will be given the initial images and the instruction.
 You have access to a Python code execution tool called eval_code(code).
 eval_code takes a string of Python code as input and executes it.
 
@@ -27,8 +28,8 @@ Do not call the function yourself, only implement it, its execution will be hand
 Ensure the code is executable, and there are no errors in it.
 
 Your goal is to verify, by using Python code, whether the instruction has been correctly applied.
-You must always call eval code.
-Your final response must always contain the final answer in the format:
+You must always call the tool eval code, unless you are satisfied with the tool call output and want to answer.
+Then, your final response must always contain the final answer in the format:
 \\boxed{score}
 
 With score being a float between 0 and 1.
@@ -52,7 +53,7 @@ tools = [
                 "properties": {
                     "code": {
                         "type": "string",
-                        "description": "Python code that will be executed",
+                        "description": "Python code that will be executed, No bacticks allowed, just python code",
                     },
                 },
                 "additionalProperties": False,
@@ -86,14 +87,12 @@ class VisualCodeVerifier(TexVerBaseline):
         }
 
     def assess_customization(self, ver_eval_input):
-        ver_eval_input.errors["initial_request"] = []
-        ver_eval_input.errors["final_request"] = []
+        ver_eval_input.usage_metadata = {"Base": []}
+
+        ver_eval_input.errors["Base"] = []
         ver_eval_input.errors["final_request_regex"] = []
 
-        concat_image = concat_images_horizontally(
-            [ver_eval_input.initial_image, ver_eval_input.initial_solution_image]
-        )
-        encoded_image = encode_image(concat_image)
+        encoded_image = encode_image(ver_eval_input.initial_image)
 
         messages = [
             {
@@ -117,25 +116,30 @@ class VisualCodeVerifier(TexVerBaseline):
             },
         ]
 
-        try:
-            response = self.client.chat.completions.create(
-                messages=messages,
-                model=self.model,
-                temperature=self.temperature,
-                tools=tools,
-            )
-        except Exception as e:
-            ver_eval_input.errors["initial_request"].append(
-                RequestException(messages=messages, wrapped_exception=e).json_dump()
-            )
-            return ver_eval_input
+        max_iterations = 3
+        iteration_count = 0
+        while iteration_count < max_iterations:
+            iteration_count += 1
+            try:
+                response = self.client.chat.completions.create(
+                    messages=messages,
+                    model=self.model,
+                    temperature=self.temperature,
+                    tools=tools,
+                    extra_body={"reasoning": {"effort": "low"}},
+                )
+                messages.append(response.choices[0].message.model_dump())
+                ver_eval_input.usage_metadata["Base"].append(response.usage)
+            except Exception as e:
+                ver_eval_input.errors["Base"].append(
+                    RequestException(messages=messages, wrapped_exception=e).json_dump()
+                )
+                return ver_eval_input
+            if response.choices[0].message.tool_calls is not None:
 
-        tool_call_res = response.choices[0].message
+                tool_call = response.choices[0].message.tool_calls[0]
+                args = json.loads(tool_call.function.arguments)
 
-        for tool_call in tool_call_res.tool_calls:
-            name = tool_call.function.name
-            args = json.loads(tool_call.function.arguments)
-            if name == "eval_code":
                 try:
                     result = str(
                         eval_code(
@@ -145,34 +149,18 @@ class VisualCodeVerifier(TexVerBaseline):
                         )
                     )
                 except Exception as e:
-                    ver_eval_input.errors["final_request"].append(
-                        CodeExecException(
-                            code=args["code"], wrapped_exception=e
-                        ).json_dump()
-                    )
-                    return ver_eval_input
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result,
-                }
-            )
+                    result = traceback.format_exc()
+                messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result,
+                    }
+                )
+            else:
+                break
 
-        try:
-            final_response = self.client.chat.completions.create(
-                model=self.model,
-                temperature=self.temperature,
-                messages=messages,
-                tools=tools,
-            )
-        except Exception as e:
-            ver_eval_input.errors["final_request"].append(
-                RequestException(messages=messages, wrapped_exception=e).json_dump()
-            )
-            return ver_eval_input
-
-        cnt = final_response.choices[0].message.content
+        cnt = response.choices[0].message.content
         pattern = r"\\boxed{([0-1]\.?[0-9]?)}"
         id_match = re.search(pattern, cnt)
 
@@ -184,6 +172,6 @@ class VisualCodeVerifier(TexVerBaseline):
 
         ver_eval_input.classified_score = float(id_match.group(1))
 
-        ver_eval_input.usage_metadata = {"Base": [response.usage, final_response.usage]}
+        ver_eval_input.additional_metadata["conversation"] = messages
 
         return ver_eval_input

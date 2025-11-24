@@ -66,6 +66,10 @@ class OracleGuidedCodeModule(OracleModule):
         self.identified_boxes: list[BoundingBox] = []
         self.identified_segments: list[SegmentationMask] = []
 
+        # Caching
+        self.seg_cache: dict[int : list[SegmentationMask]] = defaultdict(list)
+        self.box_cache: dict[int : list[BoundingBox]] = defaultdict(list)
+
         super().__init__(
             client=client,
             temperature=temperature,
@@ -162,6 +166,9 @@ class OracleGuidedCodeModule(OracleModule):
             self.segmentation_usage.clear()
             self.box_usage.clear()
             self.property_usage.clear()
+            self.seg_cache.clear()
+            self.box_cache.clear()
+
             self.identified_segments = []
             self.identified_boxes = []
             result, feedbacks = expression.evaluate(
@@ -182,9 +189,17 @@ class OracleGuidedCodeModule(OracleModule):
                 segments=self.identified_segments,
             )
 
-        return oracle, res_usage,oracle_code
+        return oracle, res_usage, oracle_code
 
     def box_from_feature(self, feature: str, image: Image.Image) -> list[BoundingBox]:
+
+        cache_key = hashlib.sha1(
+            str((hashlib.sha1(image.tobytes()).hexdigest(), feature)).encode("utf8")
+        ).hexdigest()
+
+        if cache_key in self.box_cache:
+            logger.info(f"Temp cache hit for feature {feature}")
+            return self.box_cache[cache_key]
 
         try:
             boxes, token_usage = get_bounding_boxes(
@@ -192,7 +207,7 @@ class OracleGuidedCodeModule(OracleModule):
             )
             # parsing errors and jsonFormatErrors are considered as failures to identify
             # other errors are considered full failures
-        except (ParsingError,JsonFormatError) as pe:
+        except (ParsingError, JsonFormatError) as pe:
             boxes = []
             token_usage = pe.token_data
 
@@ -202,11 +217,19 @@ class OracleGuidedCodeModule(OracleModule):
 
         self.identified_boxes.extend(boxes)
 
+        # saving cache
+        self.box_cache[cache_key] = boxes
         return boxes
 
     def segments_from_feature(
         self, feature: str, image: Image.Image
     ) -> list[SegmentationMask]:
+        cache_key = hashlib.sha1(
+            str((hashlib.sha1(image.tobytes()).hexdigest(), feature)).encode("utf8")
+        ).hexdigest()
+        if cache_key in self.seg_cache:
+            logger.info(f"Temp cache hit for feature {feature}")
+            return self.seg_cache[cache_key]
         try:
             segs, token_usage = get_segmentation_masks(
                 image,
@@ -217,7 +240,7 @@ class OracleGuidedCodeModule(OracleModule):
             )
             # parsing errors and jsonFormatErrors are considered as failures to identify
             # other errors are considered full failures
-        except (ParsingError,JsonFormatError) as pe:
+        except (ParsingError, JsonFormatError) as pe:
             segs = []
             token_usage = pe.token_data
         self.segmentation_usage[
@@ -225,6 +248,9 @@ class OracleGuidedCodeModule(OracleModule):
         ] = token_usage
 
         self.identified_segments.extend(segs)
+
+        # saving cache
+        self.seg_cache[cache_key] = segs
 
         return segs
 
