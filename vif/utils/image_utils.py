@@ -573,6 +573,7 @@ def crop_image_with_box(image: Image.Image, box):
     x0, x1, y0, y1 = box
     return image[y0:y1, x0:x1]
 
+import torchvision.transforms.functional as F
 
 from PIL import ImageColor, ImageFont, ImageDraw
 import numpy as np
@@ -580,7 +581,7 @@ import numpy as np
 from vif.models.detection import BoundingBox, SegmentationMask
 
 
-def plot_segmentation_masks(img: Image, segmentation_masks: list[SegmentationMask | BoundingBox]):
+def plot_segmentation_masks(img: Image.Image, segmentation_masks: list[SegmentationMask | BoundingBox]):
     """
     Plots bounding boxes on an image with markers for each a name, using PIL, normalized coordinates, and different colors.
 
@@ -589,6 +590,9 @@ def plot_segmentation_masks(img: Image, segmentation_masks: list[SegmentationMas
         segmentation_masks: A string encoding as JSON a list of segmentation masks containing the name of the object,
          their positions in normalized [y1 x1 y2 x2] format, and the png encoded segmentation mask.
     """
+    
+    if not isinstance(img,Image.Image):
+        img = F.to_pil_image(img)
     # Define a list of colors
     colors = [
         "red",

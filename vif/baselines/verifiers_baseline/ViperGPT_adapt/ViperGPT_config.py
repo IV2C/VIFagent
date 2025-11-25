@@ -21,14 +21,14 @@ class ViperGPTConfig:
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY"),
     )
-    qa_model = "qwen/qwen2.5-vl-32b-instruct:free"
+    qa_model = "qwen/qwen3-vl-8b-instruct"
     qa_temperature = 0.7
     # for llm_query
     query_client = Client(
         base_url="https://openrouter.ai/api/v1",
         api_key=os.environ.get("OPENROUTER_API_KEY"),
     )
-    query_model = "qwen/qwen2.5-vl-32b-instruct:free"
+    query_model = "qwen/qwen3-vl-8b-instruct"
     query_temperature = 0.7
     ##clip model
     _clip_model = None

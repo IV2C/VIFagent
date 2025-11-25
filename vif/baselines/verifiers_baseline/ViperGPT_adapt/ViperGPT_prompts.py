@@ -23,7 +23,7 @@ class ImagePatch:
         Returns the string that best matches the image.
     simple_query(question: str=None)->str
         Returns the answer to a basic question asked about the image. If no question is provided, returns the answer to "What is this?".
-    llm_query(question: str, long_answer: bool)->str
+    llm_query(question: str)->str
         References a large language model (e.g., GPT) to produce a response to the given question.
     crop(left: int, lower: int, right: int, upper: int)->ImagePatch
         Returns a new ImagePatch object containing a crop of the image at the given coordinates.
@@ -230,7 +230,7 @@ class ImagePatch:
         >>>     building_patches = image_patch.find("building")
         >>>     building_patch = building_patches[0]
         >>>     building_name = building_patch.simple_query("What is the name of the building?")
-        >>>     return building_patch.llm_query(f"What city is {building_name} in?")
+        >>>     return building_patch.llm_query(f"What city is {{building_name}} in?")
 
         >>> # Who invented this object?
         >>> def execute_command(image) -> str:
@@ -238,7 +238,7 @@ class ImagePatch:
         >>>     object_patches = image_patch.find("object")
         >>>     object_patch = object_patches[0]
         >>>     object_name = object_patch.simple_query("What is the name of the object?")
-        >>>     return object_patch.llm_query(f"Who invented {object_name}?")
+        >>>     return object_patch.llm_query(f"Who invented {{object_name}}?")
 
         return llm_query(question)
 

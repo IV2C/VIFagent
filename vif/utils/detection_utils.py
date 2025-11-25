@@ -108,6 +108,7 @@ def get_res_detection_logbprob(response):
             i += 1
     return probs
 
+import torchvision.transforms.functional as F
 
 def get_bounding_boxes(
     image: Image.Image,
@@ -116,6 +117,8 @@ def get_bounding_boxes(
     model="gemini-2.0-flash",
     enable_logprob: bool = True,
 ) -> list[BoundingBox]:
+    if not isinstance(image,Image.Image):
+        image = F.to_pil_image(image)
     encoded_image = encode_image(image=image)
 
     logger.info(f"Getting boxe for feature : {feature}")

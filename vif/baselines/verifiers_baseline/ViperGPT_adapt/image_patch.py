@@ -6,6 +6,7 @@ import torch
 from dateutil import parser as dateparser
 from PIL import Image
 from torchvision import transforms
+import torchvision
 from torchvision.ops import box_iou
 from typing import Any, Union, List
 from word2number import w2n
@@ -22,7 +23,9 @@ from vif.baselines.verifiers_baseline.ViperGPT_adapt.utils import (
 )
 from vif.models.detection import BoundingBox
 from vif.utils.detection_utils import get_bounding_boxes
-from vif.utils.image_utils import encode_image
+from vif.utils.image_utils import encode_image, plot_segmentation_masks
+
+import torchvision.transforms.functional as F
 
 
 class ImagePatch:
@@ -60,8 +63,8 @@ class ImagePatch:
     crop(left: int, lower: int, right: int, upper: int)->ImagePatch
         Returns a new ImagePatch object containing a crop of the image at the given coordinates.
     """
-    token_usage:dict[str,list]
 
+    token_usage: dict[str, list]
 
     def __init__(
         self,
@@ -116,6 +119,8 @@ class ImagePatch:
             self.right = right + parent_left
             self.lower = lower + parent_lower
 
+        # F.to_pil_image(self.cropped_image).save("current_patch.png")
+
         self.height = self.cropped_image.shape[1]
         self.width = self.cropped_image.shape[2]
 
@@ -154,10 +159,14 @@ class ImagePatch:
         List[ImagePatch]
             a list of ImagePatch objects matching object_name contained in the crop
         """
-        boxes,token_usage= get_bounding_boxes(
+        boxes, token_usage = get_bounding_boxes(
             self.cropped_image, ViperGPTConfig.visual_client, object_name
         )
-        all_coordinates = [(box.x0, box.y1, box.x1, box.y0) for box in boxes]
+
+        plot_segmentation_masks(self.cropped_image, boxes).save(
+            "segs.png"
+        )  # TODO remove
+        all_coordinates = [(box.x0, box.y0, box.x1, box.y1) for box in boxes]
 
         if len(all_coordinates) == 0:
             return []
@@ -261,25 +270,21 @@ class ImagePatch:
             question = "What is this?"
         encoded_image = encode_image(self.cropped_image)
 
-        messages = (
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": question,
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{encoded_image}"
-                            },
-                        },
-                    ],
-                },
-            ],
-        )
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": question,
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{encoded_image}"},
+                    },
+                ],
+            },
+        ]
 
         response = ViperGPTConfig.qa_client.chat.completions.create(
             messages=messages,
@@ -351,8 +356,8 @@ class ImagePatch:
             and self.upper >= lower
         )
 
-    def llm_query(self, question: str, long_answer: bool = True) -> str:
-        return llm_query(question, None, long_answer)
+    def llm_query(self, question: str) -> str:
+        return llm_query(question)
 
     def print_image(self, size: tuple[int, int] = None):
         show_single_image(self.cropped_image, size)
@@ -440,19 +445,17 @@ def llm_query(query):
         the text question to ask. Must not contain any reference to 'the image' or 'the photo', etc.
     """
 
-    messages = (
-        [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": query,
-                    }
-                ],
-            },
-        ],
-    )
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": query,
+                }
+            ],
+        },
+    ]
 
     response = ViperGPTConfig.query_client.chat.completions.create(
         messages=messages,
