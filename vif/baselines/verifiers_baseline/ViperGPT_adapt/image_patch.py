@@ -1,5 +1,7 @@
 from __future__ import annotations
+import hashlib
 
+from loguru import logger
 import numpy as np
 import re
 import torch
@@ -23,7 +25,7 @@ from vif.baselines.verifiers_baseline.ViperGPT_adapt.utils import (
 )
 from vif.models.detection import BoundingBox
 from vif.utils.detection_utils import get_bounding_boxes
-from vif.utils.image_utils import encode_image, plot_segmentation_masks
+from vif.utils.image_utils import encode_image, hash_tensor, plot_segmentation_masks
 
 import torchvision.transforms.functional as F
 
@@ -65,6 +67,8 @@ class ImagePatch:
     """
 
     token_usage: dict[str, list]
+    boxes: list[BoundingBox]
+    box_cache: dict[int : list[BoundingBox]]
 
     def __init__(
         self,
@@ -159,18 +163,30 @@ class ImagePatch:
         List[ImagePatch]
             a list of ImagePatch objects matching object_name contained in the crop
         """
-        boxes, token_usage = get_bounding_boxes(
-            self.cropped_image, ViperGPTConfig.visual_client, object_name
-        )
 
-        plot_segmentation_masks(self.cropped_image, boxes).save(
-            "segs.png"
-        )  # TODO remove
+        cache_key = hashlib.sha1(
+            str(
+                (hash_tensor(self.cropped_image), object_name)
+            ).encode("utf8")
+        ).hexdigest()
+
+        if cache_key in self.box_cache:
+            logger.info(f"Temp cache hit for feature {object_name}")
+            boxes = self.box_cache[cache_key]
+        else:
+            boxes, token_usage = get_bounding_boxes(
+                self.cropped_image, ViperGPTConfig.visual_client, object_name
+            )
+            ImagePatch.boxes.append(boxes)
+            self.box_cache[cache_key] = boxes
+            ImagePatch.token_usage["box"].append(token_usage)
+        # plot_segmentation_masks(self.cropped_image, boxes).save(
+        #    "segs.png"
+        # )
         all_coordinates = [(box.x0, box.y0, box.x1, box.y1) for box in boxes]
 
         if len(all_coordinates) == 0:
             return []
-        ImagePatch.token_usage["segmentation"] = token_usage
         return [self.crop(*coordinates) for coordinates in all_coordinates]
 
     def exists(self, object_name) -> bool:
@@ -291,7 +307,7 @@ class ImagePatch:
             model=ViperGPTConfig.qa_model,
             temperature=ViperGPTConfig.qa_temperature,
         )
-        (ImagePatch.token_usage)["simple_query"].append(response.usage)
+        ImagePatch.token_usage["simple_query"].append(response.usage)
         return response.choices[0].message.content
 
     def crop(self, left: int, lower: int, right: int, upper: int) -> ImagePatch:

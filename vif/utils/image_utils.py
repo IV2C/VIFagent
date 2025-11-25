@@ -1,6 +1,7 @@
 import base64
 from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor
+import hashlib
 from io import BytesIO
 import math
 from typing import Sequence
@@ -708,3 +709,16 @@ def overlay_mask_on_img(
     result_img = Image.alpha_composite(img_rgba, colored_mask_layer_pil)
 
     return result_img
+
+
+import torch
+from torch import Tensor
+
+
+MULTIPLIER = 6364136223846793005
+INCREMENT = 1
+MODULUS = 2**64
+
+#from https://stackoverflow.com/questions/74805446/how-to-hash-a-pytorch-tensor
+def hash_tensor(x: Tensor) -> str:
+    return hashlib.sha1(str(x).encode("utf8")).hexdigest()
