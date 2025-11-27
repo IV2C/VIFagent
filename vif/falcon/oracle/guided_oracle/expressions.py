@@ -1,4 +1,6 @@
 #################### Oracle condition "function" which actually are classes, for easier feedback creation ###############
+from dataclasses import dataclass
+from typing import Self
 from openai import Client
 import torch
 from abc import abstractmethod
@@ -10,6 +12,13 @@ from PIL import Image
 import numpy as np
 import open_clip
 
+from vif.falcon.oracle.guided_oracle.feedback import (
+    FeedBack,
+    FeedBackAnd,
+    FeedBackAndList,
+    FeedBackOr,
+    FeedBacks,
+)
 from vif.models.detection import BoundingBox, SegmentationMask
 from vif.utils.image_utils import (
     compute_mask_IoU,
@@ -114,11 +123,11 @@ class OracleExpression:
     @abstractmethod
     def evaluate(
         self, *, original_image: Image.Image, custom_image: Image.Image
-    ) -> tuple[bool, list[str]]:
+    ) -> FeedBacks:
         """evaluates the condition
 
         Returns:
-            tuple[bool,str]: a boolean from the condition and feedback
+            FeedBacks: A feedback object containing probability and information about the edit
         """
         pass
 
@@ -136,11 +145,10 @@ class OracleCondition(OracleExpression):
         custom_image: Image.Image,
         segment_function: Callable[[list[str], Image.Image], list[SegmentationMask]],
         box_function: Callable[[list[str], Image.Image], list[BoundingBox]],
-    ) -> tuple[bool, list[str]]:
+    ) -> FeedBacks:
         """evaluates the condition
 
-        Returns:
-            tuple[bool,str]: a boolean from the condition and feedback
+        Returns: A feedback object containing probability and information about the edit
         """
         pass
 
@@ -160,20 +168,12 @@ class OracleOrExpr(OracleBynaryExpr):
         return ~self.exprA & ~self.exprB
 
     def evaluate(self, *args, **kwargs):
-        res1, feedback1 = self.exprA.evaluate(**kwargs)
+        feedback1 = self.exprA.evaluate(**kwargs)
+        feedback2 = self.exprB.evaluate(**kwargs)
 
-        res2, feedback2 = self.exprB.evaluate(**kwargs)
+        feedbacks = FeedBackOr(feedback1, feedback2)
 
-        condition = res1 or res2
-        if not condition:
-            feedbacks = feedback1 + feedback2
-            feedbacks = [
-                f"One of these conditions should have been valid, but none were\n - {'\n - '.join(feedbacks)}"
-            ]
-        else:
-            feedbacks = []
-
-        return (condition, feedbacks)
+        return feedbacks
 
 
 class OracleAndExpr(OracleBynaryExpr):
@@ -182,12 +182,12 @@ class OracleAndExpr(OracleBynaryExpr):
         return ~self.exprA | ~self.exprB
 
     def evaluate(self, *args, **kwargs):
-        res1, feedback1 = self.exprA.evaluate(**kwargs)
+        feedback1 = self.exprA.evaluate(**kwargs)
+        feedback2 = self.exprB.evaluate(**kwargs)
 
-        res2, feedback2 = self.exprB.evaluate(**kwargs)
-        feedbacks = feedback1 + feedback2
+        feedbacks = FeedBackAnd(feedback1, feedback2)
 
-        return (res1 and res2, feedbacks)
+        return feedbacks
 
 
 class present(OracleCondition):
@@ -201,16 +201,19 @@ class present(OracleCondition):
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         boxes = box_function(self.feature, custom_image)
+        if len(boxes) == 0:
+            probability = 0
+        else:
 
-        condition = len(boxes)>0 and any(box != None and box.box_prob >= 0.1 for box in boxes)
-        return (
-            condition,
-            (
-                [f"The feature {self.feature} is not in the customized image."]
-                if not condition
-                else []
-            ),
+            max_boxprob = max([box.box_prob for box in boxes])
+            max_boxprob = min(0.3, max_boxprob)
+            probability = max_boxprob / 0.3
+
+        feeback = FeedBack(
+            f"The feature {self.feature} is not in the customized image.", probability
         )
+
+        return feeback
 
 
 class removed(OracleCondition):
@@ -224,19 +227,19 @@ class removed(OracleCondition):
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         boxes = box_function(self.feature, custom_image)
+        if len(boxes) == 0:
+            probability = 1
+        else:
+            max_boxprob = max([box.box_prob for box in boxes])
+            max_boxprob = min(0.3, max_boxprob)
+            probability = 1 - (max_boxprob / 0.3)
 
-        condition = len(boxes)>0 and all(box != None and box.box_prob < 0.1 for box in boxes)
-
-        return (
-            condition,
-            (
-                [
-                    f"The feature {self.feature} is still present in the customized image."
-                ]
-                if not condition
-                else []
-            ),
+        feeback = FeedBack(
+            f"The feature {self.feature} is in the customized image, but should not be.",
+            probability,
         )
+
+        return feeback
 
 
 ############################# IMAGE ORACLE ##################################
@@ -358,12 +361,15 @@ class placement(OracleCondition):
         boxes_featA = box_function(self.feature, custom_image)
         boxes_featB = box_function(self.other_feature, custom_image)
 
-        if len(boxes_featA)==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        if len(boxes_featB) ==0:
-            return (False, [f"No feature {self.other_feature} was detected in the customized image"])
-        
-        
+        if (
+            feed := FeedBack.from_detection(boxes_featA, self.feature, "customized")
+        ) or (
+            feed := FeedBack.from_detection(
+                boxes_featB, self.other_feature, "customized"
+            )
+        ):
+            return feed
+
         label_centers_boxA = [
             (box_featA.label, get_box_center(box_featA)) for box_featA in boxes_featA
         ]
@@ -377,8 +383,9 @@ class placement(OracleCondition):
             for labelA, center_boxA in label_centers_boxA
             for labelB, center_boxB in label_centers_boxB
         ]
-        condition = all([cond for cond, feed in conditions_feedbacks])
-        return (condition, [feed for cond, feed in conditions_feedbacks if not cond])
+        feedbacks = [FeedBack(feed, int(cond)) for cond, feed in conditions_feedbacks]
+
+        return FeedBackAndList(feedbacks)
 
 
 class position(OracleCondition):
@@ -403,16 +410,29 @@ class position(OracleCondition):
         custom_boxes_featA = box_function(self.feature, custom_image)
         custom_boxes_featB = box_function(self.other_feature, custom_image)[0]
 
-        if len(original_boxes_featA)==0:
-            return (False, [f"No feature {self.feature} was detected in the original image"])
-        if len(original_boxes_featB) ==0:
-            return (False, [f"No feature {self.other_feature} was detected in the original image"])
-        if len(custom_boxes_featA)==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        if len(custom_boxes_featB) ==0:
-            return (False, [f"No feature {self.other_feature} was detected in the customized image"])
-        
-        
+        if (
+            (
+                feed := FeedBack.from_detection(
+                    original_boxes_featA, self.feature, "original"
+                )
+            )
+            or (
+                feed := FeedBack.from_detection(
+                    original_boxes_featB, self.other_feature, "original"
+                )
+            )
+            or (
+                feed := FeedBack.from_detection(
+                    custom_boxes_featA, self.feature, "customized"
+                )
+            )
+            or (
+                feed := FeedBack.from_detection(
+                    custom_boxes_featB, self.other_feature, "customized"
+                )
+            )
+        ):
+            return feed
         original_box_featB = original_boxes_featB[0]
         custom_box_featB = custom_boxes_featB[0]
         # keeping only the A features with the most similar names between original and modified
@@ -446,50 +466,41 @@ class position(OracleCondition):
             Axis.horizontal: self.horizontal_oracle,
             Axis.vertical: self.vertical_oracle,
         }
-        condition_feedback = [
+        feedbacks = [
             axis_eval_map[self.axis](original_distance, custom_distance, feat_name)
             for original_distance, custom_distance, (_, feat_name) in zip(
                 original_distances, custom_distances, feature_correspondance.items()
             )
         ]
 
-        condition = all(condition for condition, _ in condition_feedback)
-        feedbacks = [
-            feedback for condition, feedback in condition_feedback if not condition
-        ]
 
-        return (condition, feedbacks if not condition else [])
+        return FeedBackAndList(feedbacks)
 
     def horizontal_oracle(
         self, d1: tuple[int, int], d2: tuple[int, int], feat_name
-    ) -> tuple[bool, str]:
+    ) -> FeedBack:
         expected_distance = self.ratio * d1[0]
-        condition = (
-            expected_distance - 0.1 * expected_distance
-            <= d2[0]
-            <= expected_distance + 0.1 * expected_distance
-        )
+
+        score = 1 - max(1, (abs(d2[0] - expected_distance) / (0.2 * expected_distance)))
+
         if self.negated:
             feedback = f"The horizontal distance between {feat_name} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
-            return (not condition, feedback)
+            return FeedBack(1 - score, feedback)
 
         feedback = f"The horizontal distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
-        return (condition, feedback)
+        return FeedBack(score, feedback)
 
     def vertical_oracle(
         self, d1: tuple[int, int], d2: tuple[int, int], feat_name
     ) -> tuple[bool, str]:
         expected_distance = self.ratio * d1[1]
-        condition = (
-            expected_distance - 0.1 * expected_distance
-            <= d2[1]
-            <= expected_distance + 0.1 * expected_distance
-        )
+        score = 1 - max(1, (abs(d2[1] - expected_distance) / (0.2 * expected_distance)))
+
         if self.negated:
             feedback = f"The vertical distance between {feat_name} and {self.other_feature} is {d2[1]} which is too close to {expected_distance}."
-            return (not condition, feedback)
+            return FeedBack(1 - score, feedback)
         feedback = f"The vertical distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[1]}."
-        return (condition, feedback)
+        return FeedBack(score, feedback)
 
 
 class angle(OracleCondition):
@@ -524,6 +535,9 @@ class angle(OracleCondition):
 
         sorted_IoUs = sorted(ious.items(), reverse=True)
         sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:5] for iou in ious[1]]
+        
+        #TODO somthing like that: deg_scores = [abs(self.degree - deg)/5 for deg in sorted_IoUs_degrees]
+        
         condition = any(
             deg - 5 <= self.degree <= deg + 5 for deg in sorted_IoUs_degrees
         )
@@ -542,14 +556,11 @@ class angle(OracleCondition):
         ori_segs = segment_function(self.feature, original_image)
 
         custom_segs = segment_function(self.feature, custom_image)
-        
-        
-        if len(ori_segs)==0:
-            return (False, [f"No feature {self.feature} was detected in the original image"])
-        if len(custom_segs) ==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        
-        
+        if (feed := FeedBack.from_detection(ori_segs, self.feature, "original")) or (
+            feed := FeedBack.from_detection(custom_segs, self.feature, "customized")
+        ):
+            return feed
+
         feature_correspondance = get_corresponding_features_detections(
             ori_segs, custom_segs
         )
@@ -630,11 +641,9 @@ class color(OracleCondition):
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         cust_features = segment_function(self.feature, custom_image)
+        if feed := FeedBack.from_detection(cust_features, self.feature, "customized"):
+            return feed
 
-        if len(cust_features)==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        
-        
         custom_colors_counts = [
             self.get_feature_colors(seg, custom_image) for seg in cust_features
         ]
@@ -721,12 +730,13 @@ class size(OracleCondition):
 
         ori_features = box_function(self.feature, original_image)
         cust_features = box_function(self.feature, custom_image)
+        if (
+            feed := FeedBack.from_detection(ori_features, self.feature, "original")
+        ) or (
+            feed := FeedBack.from_detection(cust_features, self.feature, "customized")
+        ):
+            return feed
 
-        if len(ori_features)==0:
-            return (False, [f"No feature {self.feature} was detected in the original image"])
-        if len(cust_features) ==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        
         feature_correspondance = get_corresponding_features_detections(
             ori_features, cust_features
         )
@@ -796,9 +806,9 @@ class shape(OracleCondition):
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         cust_features = segment_function(self.feature, custom_image)
-        if len(cust_features)==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        
+        if feed := FeedBack.from_detection(cust_features, self.feature, "customized"):
+            return feed
+
         mask_images = [
             (Image.fromarray(cust_feature.mask), cust_feature.label)
             for cust_feature in cust_features
@@ -845,14 +855,20 @@ class within(OracleCondition):
     ):
         custom_segs_featA = segment_function(self.feature, custom_image)
 
-        custom_seg_featB = segment_function(self.other_feature, custom_image)[0]
+        custom_segs_featB = segment_function(self.other_feature, custom_image)
 
-        if len(custom_segs_featA)==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        if len(custom_seg_featB) ==0:
-            return (False, [f"No feature {self.other_feature} was detected in the customized image"])
-        
-        
+        if (
+            feed := FeedBack.from_detection(
+                custom_segs_featA, self.feature, "customized"
+            )
+        ) or (
+            feed := FeedBack.from_detection(
+                custom_segs_featB, self.other_feature, "customized"
+            )
+        ):
+            return feed
+        custom_seg_featB = custom_segs_featB[0]
+
         cond_feed = [
             self.check_within(segA, custom_seg_featB) for segA in custom_segs_featA
         ]
@@ -920,12 +936,11 @@ class mirrored(OracleCondition):
         ori_segs = segment_function(self.feature, original_image)
         custom_segs = segment_function(self.feature, custom_image)
 
-        if len(ori_segs)==0:
-            return (False, [f"No feature {self.feature} was detected in the original image"])
-        if len(custom_segs) ==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        
-        
+        if (feed := FeedBack.from_detection(ori_segs, self.feature, "original")) or (
+            feed := FeedBack.from_detection(custom_segs, self.feature, "customized")
+        ):
+            return feed
+
         feature_correspondance = get_corresponding_features_detections(
             ori_segs, custom_segs
         )
@@ -965,12 +980,17 @@ class aligned(OracleCondition):
     ):
         custom_boxes_featA = box_function(self.feature, custom_image)
         custom_boxes_featB = box_function(self.other_feature, custom_image)
-        
-        if len(custom_boxes_featA)==0:
-            return (False, [f"No feature {self.feature} was detected in the customized image"])
-        if len(custom_boxes_featB) ==0:
-            return (False, [f"No feature {self.other_feature} was detected in the customized image"])
-        
+        if (
+            feed := FeedBack.from_detection(
+                custom_boxes_featA, self.feature, "customized"
+            )
+        ) or (
+            feed := FeedBack.from_detection(
+                custom_boxes_featB, self.other_feature, "customized"
+            )
+        ):
+            return feed
+
         box_center_boxes = [
             (box, get_box_center(box))
             for box in custom_boxes_featA + custom_boxes_featB
