@@ -10,12 +10,12 @@ class FeedBack:
         self.probability = probability
 
     def tojson(self, threshold: float = 1) -> dict | None:
-        if self.probability >= threshold:
+        if self.probability > threshold:
             return None
         return {
             "type": "FeedBack",
             "feedback": self.feedback,
-            "probability": self.probability,
+            "probability": round(self.probability,2),
         }
 
     @staticmethod
@@ -38,7 +38,7 @@ class FeedBackCond:
         self.probability = 0
 
     def tojson(self, threshold: float = 1) -> dict | None:
-        if self.probability >= threshold:
+        if self.probability > threshold:
             return None
 
         a = self.feedbackA.tojson(threshold)
@@ -50,7 +50,7 @@ class FeedBackCond:
 
         return {
             "type": self.__class__.__name__,
-            "probability": self.probability,
+            "probability": round(self.probability,2),
             "feedbackA": a,
             "feedbackB": b,
         }
@@ -76,14 +76,11 @@ class FeedBackListBase:
     def __init__(self, items: list[FeedBack]):
         if not items:
             raise ValueError("List cannot be empty")
-        for it in items:
-            if not isinstance(it, FeedBack):
-                raise TypeError("Items must be FeedBack instances only")
         self.items = items
         self.probability = 0
 
     def tojson(self, threshold: float = 1):
-        if self.probability >= threshold:
+        if self.probability > threshold:
             return None
 
         children = [x.tojson(threshold) for x in self.items]
@@ -93,7 +90,7 @@ class FeedBackListBase:
 
         return {
             "type": self.__class__.__name__,
-            "probability": self.probability,
+            "probability": round(self.probability,2),
             "items": children,
         }
 

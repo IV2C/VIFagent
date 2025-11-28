@@ -59,7 +59,7 @@ def build_basic_colors():
 
 
 basic_colors = build_basic_colors()
-accepted_color_ratio = math.floor((3 / 20) * len(basic_colors))
+accepted_color_ratio = math.floor((1 / 10) * len(basic_colors))
 
 
 ### Shape oracle settings
@@ -405,10 +405,10 @@ class position(OracleCondition):
     ):
         original_boxes_featA = box_function(self.feature, original_image)
 
-        original_boxes_featB = box_function(self.other_feature, original_image)[0]
+        original_boxes_featB = box_function(self.other_feature, original_image)
 
         custom_boxes_featA = box_function(self.feature, custom_image)
-        custom_boxes_featB = box_function(self.other_feature, custom_image)[0]
+        custom_boxes_featB = box_function(self.other_feature, custom_image)
 
         if (
             (
@@ -480,26 +480,26 @@ class position(OracleCondition):
     ) -> FeedBack:
         expected_distance = self.ratio * d1[0]
 
-        score = 1 - max(1, (abs(d2[0] - expected_distance) / (0.2 * expected_distance)))
+        score = 1 - min(1, (abs(d2[0] - expected_distance) / (0.2 * expected_distance)))
 
         if self.negated:
             feedback = f"The horizontal distance between {feat_name} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
-            return FeedBack(1 - score, feedback)
+            return FeedBack(feedback, 1 - score)
 
         feedback = f"The horizontal distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
-        return FeedBack(score, feedback)
+        return FeedBack(feedback, score)
 
     def vertical_oracle(
         self, d1: tuple[int, int], d2: tuple[int, int], feat_name
     ) -> tuple[bool, str]:
         expected_distance = self.ratio * d1[1]
-        score = 1 - max(1, (abs(d2[1] - expected_distance) / (0.2 * expected_distance)))
+        score = 1 - min(1, (abs(d2[1] - expected_distance) / (0.2 * expected_distance)))
 
         if self.negated:
             feedback = f"The vertical distance between {feat_name} and {self.other_feature} is {d2[1]} which is too close to {expected_distance}."
-            return FeedBack(1 - score, feedback)
+            return FeedBack(feedback, 1 - score)
         feedback = f"The vertical distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[1]}."
-        return FeedBack(score, feedback)
+        return FeedBack(feedback, score)
 
 
 class angle(OracleCondition):
@@ -533,17 +533,13 @@ class angle(OracleCondition):
                 )  # using similarity as key make this somewhat resistant to rotation invariant
 
         sorted_IoUs = sorted(ious.items(), reverse=True)
-        sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:5] for iou in ious[1]]
+        sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:3] for iou in ious[1]]
 
         deg_scores = [
             min(abs(self.degree - deg) / 10, 1) for deg in sorted_IoUs_degrees
         ]
 
         score = 1 - min(deg_scores)
-
-        condition = any(
-            deg - 5 <= self.degree <= deg + 5 for deg in sorted_IoUs_degrees
-        )
 
         if self.negated:
             score = 1 - score
@@ -621,27 +617,30 @@ class color(OracleCondition):
             text_probs = (100.0 * image_features @ clip_encoded_color_names.T).softmax(
                 dim=-1
             )[0]
-        top_indice = np.argsort(-text_probs)  # [:accepted_color_ratio]
+        top_indice = np.argsort(-text_probs)  #
 
         ranked_colors = np.array(eval_colors)[top_indice]
 
-        (index,) = np.where(ranked_colors == self.color_expected)
+        index = min(np.where(ranked_colors == self.color_expected)[0])
 
-        score = 1-(index/len(ranked_colors))
-        
+        if index < 5:
+            score = 1.0
+        else:
+            score = 1 - min((index - 5) / accepted_color_ratio, 1)
+
         # condition = (
         #    text_probs[0] > 0.5
         #    or self.color_expected in most_similar_colors
         #    or any(self.color_expected in cur_col for cur_col in most_similar_colors)
         # )
 
-        feedback = f"The color of the {label} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in most_similar_colors[:3]])}."
+        feedback = f"The color of the {label} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in ranked_colors[:3]])}."
 
         if self.negated:
-            score = 1-score
+            score = 1 - score
             feedback = f"The color of the {label} should not have been {self.color_expected.removesuffix(" color")}, but is still too close to {self.color_expected.removesuffix(" color")}."
 
-        return FeedBack(feedback,score)
+        return FeedBack(feedback, score)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -679,7 +678,7 @@ class size(OracleCondition):
     def __init__(self, feature: str, ratio: tuple[float, float]):
         self.ratio = ratio
         self.negated = False
-        self.delta = 0.15
+        self.delta = 0.2
         super().__init__(feature)
 
     def __invert__(self):
@@ -694,38 +693,35 @@ class size(OracleCondition):
             ori_feature.y1 - ori_feature.y0
         )
 
-        feedback = []
-
-        x_condition = (
-            (self.ratio[0] - self.delta * self.ratio[0])
-            < x_ratio
-            < (self.ratio[0] + self.delta * self.ratio[0])
+        x_score = 1 - min(
+            abs(x_ratio - self.ratio[0]) / (self.delta * self.ratio[0]), 1
         )
-        y_condition = (
-            (self.ratio[1] - self.delta * self.ratio[1])
-            < y_ratio
-            < (self.ratio[1] + self.delta * self.ratio[1])
+        y_score = 1 - min(
+            abs(y_ratio - self.ratio[1]) / (self.delta * self.ratio[1]), 1
         )
-
-        condition = x_condition and y_condition
 
         if self.negated:
-            x_condition and feedback.append(
-                f"The {ori_feature.label} was resized on x by a ratio of {x_ratio}, which is too close to {self.ratio[0]}"
+            return FeedBackOr(
+                FeedBack(
+                    f"The {ori_feature.label} was resized on x by a ratio of {x_ratio}, which is too close to {self.ratio[0]}",
+                    1 - x_score,
+                ),
+                FeedBack(
+                    f"The {ori_feature.label} was resized on y by a ratio of {y_ratio}, which is too close to {self.ratio[1]}",
+                    1 - y_score,
+                ),
             )
-            y_condition and feedback.append(
-                f"The {ori_feature.label} was resized on y by a ratio of {y_ratio}, which is too close to {self.ratio[1]}"
-            )
-            return (not condition, feedback)
         else:
-            not x_condition and feedback.append(
-                f"The {ori_feature.label} was resized on x by a ratio of {x_ratio}, but should have been by a ratio of {self.ratio[0]}"
+            return FeedBackAnd(
+                FeedBack(
+                    f"The {ori_feature.label} was resized on x by a ratio of {x_ratio}, but should have been by a ratio of {self.ratio[0]}",
+                    x_score,
+                ),
+                FeedBack(
+                    f"The {ori_feature.label} was resized on y by a ratio of {y_ratio}, but should have been by a ratio of {self.ratio[1]}",
+                    y_score,
+                ),
             )
-            not y_condition and feedback.append(
-                f"The {ori_feature.label} was resized on y by a ratio of {y_ratio}, but should have been by a ratio of {self.ratio[1]}"
-            )
-
-            return (condition, feedback)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -754,9 +750,8 @@ class size(OracleCondition):
             self.check_size(ori_seg, custom_seg) for ori_seg, custom_seg in seg_mapping
         ]
 
-        condition = all(cond for cond, _ in cond_feed)
-        feedbacks = [feed for cond, feeds in cond_feed if not cond for feed in feeds]
-        return (condition, feedbacks)
+        return FeedBackAndList(cond_feed)
+        
 
 
 ##model settings for shape and color detection

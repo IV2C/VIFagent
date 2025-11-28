@@ -27,6 +27,7 @@ class TestExpression(unittest.TestCase):
         self.original_image.putdata([0, 0, 0, 1])
         self.custom_image: Image.Image = Image.new("1", (2, 2))
         self.custom_image.putdata([0, 0, 1, 0])
+        self.maxDiff = None
         super().__init__(methodName)
 
     @parameterized.expand(
@@ -55,14 +56,16 @@ class TestExpression(unittest.TestCase):
             return placement("triangle", "rectangle", direction)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertTrue(result)
-        self.assertEqual([], feedback)
+        self.assertAlmostEqual(1.0, feedback.probability)
+        expected = None
+
+        self.assertEqual(expected, feedback.tojson(threshold=0.5))
 
     @parameterized.expand(
         [
@@ -109,14 +112,22 @@ class TestExpression(unittest.TestCase):
             return placement("triangle", "rectangle", direction)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertFalse(result)
-        self.assertEqual([feedback_expected], feedback)
+        self.assertAlmostEqual(feedback.probability, 0.0)
+
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": 0,
+            "items": [
+                {"type": "FeedBack", "feedback": feedback_expected, "probability": 0}
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.5))
 
     @parameterized.expand(
         [
@@ -159,14 +170,16 @@ class TestExpression(unittest.TestCase):
             return ~placement("triangle", "rectangle", direction)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertTrue(result)
-        self.assertEqual([], feedback)
+        self.assertAlmostEqual(1.0, feedback.probability)
+        expected = None
+
+        self.assertEqual(expected, feedback.tojson(threshold=0.5))
 
     @parameterized.expand(
         [
@@ -220,23 +233,24 @@ class TestExpression(unittest.TestCase):
             return placement("triangles", "rectangles", direction)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertTrue(result)
-        self.assertEqual([], feedback)
+        self.assertAlmostEqual(feedback.probability, 1.0)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.5))
 
     @parameterized.expand(
         [
             (
                 "right",
                 (40, 40, 60, 50),
-                (40, 50, 60, 60),
-                (40, 30, 60, 50),
-                (40, 45, 60, 50),
+                (40, 65, 60, 80),
+                (40, 45, 60, 55),
+                (40, 60, 60, 65),
             )
         ]
     )
@@ -260,14 +274,31 @@ class TestExpression(unittest.TestCase):
             return placement("triangles", "rectangles", direction)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertFalse(result)
-        self.assertEqual(['The triangleA is not on the right of the rectangleB'], feedback)
+        self.assertAlmostEqual(feedback.probability, 0.0)
+
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": 0,
+            "items": [
+                {
+                    "type": "FeedBack",
+                    "feedback": "The triangleA is not on the right of the rectangleA",
+                    "probability": 0,
+                },
+                {
+                    "type": "FeedBack",
+                    "feedback": "The triangleA is not on the right of the rectangleB",
+                    "probability": 0,
+                },
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.5))
 
     @parameterized.expand(
         [
@@ -313,14 +344,17 @@ class TestExpression(unittest.TestCase):
             return position("triangle", "rectangle", 2, axis)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertTrue(result, feedback)
-        self.assertEqual([], feedback)
+
+        self.assertAlmostEqual(feedback.probability, 1.0)
+
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.5))
 
     @parameterized.expand(
         [
@@ -360,22 +394,24 @@ class TestExpression(unittest.TestCase):
             return position("triangle", "rectangle", 2, "vertical")
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertTrue(result, feedback)
-        self.assertEqual([], feedback)
+        self.assertAlmostEqual(feedback.probability, 1.0)
+
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.5))
 
     @parameterized.expand(
         [
             (
                 (30, 30, 50, 50),
                 (40, 40, 60, 60),
-                (30, 30, 50, 50),
-                (40, 30, 60, 50),
+                (31, 30, 50, 50),
+                (40, 30, 46, 50),
                 (50, 40, 70, 60),
             )
         ]
@@ -408,19 +444,30 @@ class TestExpression(unittest.TestCase):
             return position("triangle", "rectangle", 2, "vertical")
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertFalse(result, feedback)
-        self.assertEqual(
-            [
-                "The vertical distance between triangle2 and rectangle was supposed to be around 20.0, but was 10.0."
+        self.assertAlmostEqual(feedback.probability, 0.21875)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": 0.21875,
+            "items": [
+                {
+                    "type": "FeedBack",
+                    "feedback": "The vertical distance between triangle1 and rectangle was supposed to be around 20.0, but was 19.5.",
+                    "probability": 0.875,
+                },
+                {
+                    "type": "FeedBack",
+                    "feedback": "The vertical distance between triangle2 and rectangle was supposed to be around 20.0, but was 17.0.",
+                    "probability": 0.25,
+                },
             ],
-            feedback,
-        )
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
@@ -470,14 +517,15 @@ class TestExpression(unittest.TestCase):
             return ~position("triangle", "rectangle", 2, axis)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertTrue(result, feedback)
-        self.assertEqual([], feedback)
+        self.assertAlmostEqual(feedback.probability, 1.0)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
@@ -530,14 +578,25 @@ class TestExpression(unittest.TestCase):
             return ~position("triangle", "rectangle", 2, axis)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertFalse(result)
-        self.assertEqual([feedback_expected], feedback)
+        self.assertAlmostEqual(feedback.probability, 0.0)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": 0.0,
+            "items": [
+                {
+                    "type": "FeedBack",
+                    "feedback": feedback_expected,
+                    "probability": 0.0,
+                }
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
@@ -563,7 +622,7 @@ class TestExpression(unittest.TestCase):
         )
         custom_features: list[SegmentationMask] = pickle.loads(
             open("tests/resources/seg/stc_rgb_rotc.pickle", "rb").read()
-        )  # works because hte pickle file only contains the seg for blue square
+        )  # works because the pickle file only contains the seg for blue square
         feat_dict = {
             hash((self.original_image.tobytes(), "blue square")): original_features,
             hash((self.custom_image.tobytes(), "blue square")): custom_features,
@@ -576,32 +635,35 @@ class TestExpression(unittest.TestCase):
             return angle("blue square", degree)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertTrue(result)
-        self.assertEqual([], feedback)
+
+        self.assertAlmostEqual(feedback.probability, 1.0)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
-            (85),
-            (90),
-            (95),
-            (-85),
-            (-90),
-            (-95),
-            (175),
-            (180),
-            (185),
-            (-175),
-            (-180),
-            (-185),
+            (85, 0.0),
+            (90, 0.0),
+            (95, 0.0),
+            (-85, 0.0),
+            (-90, 0.0),
+            (-95, 0.0),
+            (175, 0.0),
+            (180, 0.0),
+            (185, 0.0),
+            (-175, 0.0),
+            (-180, 0.0),
+            (-185, 0.0),
+            (55, 0.5),
         ]
     )
-    def test_rotated_invalid(self, degree):
+    def test_rotated_invalid(self, degree, expected_score):
         import pickle
 
         original_features: list[SegmentationMask] = pickle.loads(
@@ -622,15 +684,27 @@ class TestExpression(unittest.TestCase):
             return angle("blue square", degree)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
         expected_feedback = f"The blue square should be rotated by {degree} degrees, but is rotated by -135,45,-45,135 degrees."
-        self.assertFalse(result)
-        self.assertEqual([expected_feedback], feedback)
+
+        self.assertAlmostEqual(feedback.probability, expected_score)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": expected_score,
+            "items": [
+                {
+                    "type": "FeedBack",
+                    "feedback": expected_feedback,
+                    "probability": expected_score,
+                }
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
@@ -669,32 +743,35 @@ class TestExpression(unittest.TestCase):
             return ~angle("blue square", degree)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             box_function=get_features,
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        self.assertTrue(result)
-        self.assertEqual([], feedback)
+
+        self.assertAlmostEqual(feedback.probability, 1.0)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
-            (40),
-            (45),
-            (50),
-            (-40),
-            (-45),
-            (-50),
-            (130),
-            (135),
-            (140),
-            (-130),
-            (-135),
-            (-140),
+            (40, 0.0),
+            (45, 0.0),
+            (50, 0.0),
+            (-40, 0.0),
+            (-45, 0.0),
+            (-50, 0.0),
+            (130, 0.0),
+            (135, 0.0),
+            (140, 0.0),
+            (-130, 0.0),
+            (-135, 0.0),
+            (-140, 0.0),
+            (55, 0.5),
         ]
     )
-    def test_rotated_negated_invalid(self, degree):
+    def test_rotated_negated_invalid(self, degree, expected_score):
         import pickle
 
         original_features: list[SegmentationMask] = pickle.loads(
@@ -715,15 +792,26 @@ class TestExpression(unittest.TestCase):
             return ~angle("blue square", degree)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             box_function=get_features,
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
         expected_feedback = f"The blue square should not be rotated by {degree} degrees, and is rotated by -135,45,-45,135 degrees, which is too close/equal."
-        self.assertFalse(result)
-        self.assertEqual([expected_feedback], feedback)
+        self.assertAlmostEqual(feedback.probability, expected_score)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": expected_score,
+            "items": [
+                {
+                    "type": "FeedBack",
+                    "feedback": expected_feedback,
+                    "probability": expected_score,
+                }
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(["pale blue", "light blue", "blue"])
     def test_color_valid(self, color_expected):
@@ -744,17 +832,18 @@ class TestExpression(unittest.TestCase):
             return color("blue square", color_expected)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=custom_image,
             segment_function=get_features,
         )
-        self.assertTrue(result, feedback)
-        self.assertEqual([], feedback)
+        self.assertAlmostEqual(feedback.probability, 0.95, delta=0.06)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.9))
 
-    @parameterized.expand(["white", "green", "yellowish gray"])
-    def test_color_invalid(self, color_expected):
+    @parameterized.expand([("white", 0.0), ("green", 0.0), ("yellowish gray", 0.0)])
+    def test_color_invalid(self, color_expected, expected_score):
         import pickle
 
         custom_features: list[SegmentationMask] = pickle.loads(
@@ -772,16 +861,26 @@ class TestExpression(unittest.TestCase):
             return color("blue square", color_expected)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             box_function=get_features,
             original_image=self.original_image,
             custom_image=custom_image,
             segment_function=get_features,
         )
-        epected_feedback = f"The color of the blue square should have been {color_expected}, but is closer to very light purple, light purple, very light blue."
-
-        self.assertFalse(result, feedback)
-        self.assertEqual([epected_feedback], feedback)
+        expected_feedback = f"The color of the blue square should have been {color_expected}, but is closer to very light purple, light purple, very light blue."
+        self.assertAlmostEqual(feedback.probability, expected_score)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": expected_score,
+            "items": [
+                {
+                    "type": "FeedBack",
+                    "feedback": expected_feedback,
+                    "probability": expected_score,
+                }
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(["white", "green", "yellowish gray"])
     def test_color_negated_valid(self, color_expected):
@@ -802,14 +901,16 @@ class TestExpression(unittest.TestCase):
             return ~color("blue square", color_expected)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=custom_image,
             segment_function=get_features,
         )
-        self.assertTrue(result, feedback)
-        self.assertEqual([], feedback)
+
+        self.assertAlmostEqual(feedback.probability, 0.95, delta=0.06)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(["pale blue", "light blue", "very light blue"])
     def test_color_negated_invalid(self, color_expected):
@@ -831,16 +932,27 @@ class TestExpression(unittest.TestCase):
             return ~color("blue square", color_expected)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=custom_image,
             segment_function=get_features,
         )
-        epected_feedback = f"The color of the blue square should not have been {color_expected}, but is still too close to {color_expected}."
+        expected_feedback = f"The color of the blue square should not have been {color_expected}, but is still too close to {color_expected}."
 
-        self.assertFalse(result, feedback)
-        self.assertEqual([epected_feedback], feedback)
+        self.assertAlmostEqual(feedback.probability, 0.0)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": 0.0,
+            "items": [
+                {
+                    "type": "FeedBack",
+                    "feedback": expected_feedback,
+                    "probability": 0.0,
+                }
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
@@ -867,14 +979,16 @@ class TestExpression(unittest.TestCase):
             return size("triangle", ratio)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        self.assertTrue(result, feedback)
-        self.assertEqual([], feedback)
+
+        self.assertAlmostEqual(feedback.probability, 1.0)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.1))
 
     @parameterized.expand(
         [
@@ -917,14 +1031,15 @@ class TestExpression(unittest.TestCase):
             return size("triangle", ratio)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        self.assertTrue(result, feedback)
-        self.assertEqual([], feedback)
+        self.assertAlmostEqual(feedback.probability, 1.0)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.1))
 
     @parameterized.expand(
         [
@@ -932,8 +1047,8 @@ class TestExpression(unittest.TestCase):
                 (1, 1.5),
                 (50, 50, 60, 60),
                 (40, 40, 60, 60),
-                (50, 50, 65, 65),
-                (40, 40, 70, 65),
+                (50, 50, 65, 61),
+                (40, 40, 72, 60),
             )
         ]
     )
@@ -960,20 +1075,41 @@ class TestExpression(unittest.TestCase):
             return size("triangle", ratio)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        self.assertFalse(result, feedback)
-        self.assertEqual(
-            [
-                "The triangleB was resized on x by a ratio of 1.25, but should have been by a ratio of 1",
-                "The triangleA was resized on x by a ratio of 1.5, but should have been by a ratio of 1",
+
+        self.assertAlmostEqual(feedback.probability, 1 / 3)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": 0.33,
+            "items": [
+                {
+                    "type": "FeedBackAnd",
+                    "probability": 0.67,
+                    "feedbackA": None,
+                    "feedbackB": {
+                        "type": "FeedBack",
+                        "feedback": "The triangleB was resized on y by a ratio of 1.6, but should have been by a ratio of 1.5",
+                        "probability": 0.67,
+                    },
+                },
+                {
+                    "type": "FeedBackAnd",
+                    "probability": 0.5,
+                    "feedbackA": {
+                        "type": "FeedBack",
+                        "feedback": "The triangleA was resized on x by a ratio of 1.1, but should have been by a ratio of 1",
+                        "probability": 0.5,
+                    },
+                    "feedbackB": None,
+                },
             ],
-            feedback,
-        )
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
@@ -990,8 +1126,8 @@ class TestExpression(unittest.TestCase):
                 (50, 50, 60, 60),
                 (45, 50, 65, 70),
                 [
-                    "The triangle was resized on x by a ratio of 2.0, but should have been by a ratio of 3",
                     "The triangle was resized on y by a ratio of 2.0, but should have been by a ratio of 3",
+                    "The triangle was resized on x by a ratio of 2.0, but should have been by a ratio of 3",
                 ],
             ),
         ]
@@ -1015,14 +1151,41 @@ class TestExpression(unittest.TestCase):
             return size("triangle", ratio)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             box_function=get_features,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        self.assertFalse(result)
-        self.assertEqual(expected_feedback, feedback)
+
+        self.assertAlmostEqual(feedback.probability, 0.0)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": 0.0,
+            "items": [
+                {
+                    "type": "FeedBackAnd",
+                    "probability": 0.0,
+                    "feedbackA": (
+                        (
+                            {
+                                "type": "FeedBack",
+                                "feedback": expected_feedback[1],
+                                "probability": 0.0,
+                            }
+                        )
+                        if len(expected_feedback) > 1
+                        else None
+                    ),
+                    "feedbackB": {
+                        "type": "FeedBack",
+                        "feedback": expected_feedback[0],
+                        "probability": 0.0,
+                    },
+                }
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
 
     @parameterized.expand(
         [
@@ -1057,14 +1220,15 @@ class TestExpression(unittest.TestCase):
             return ~size("triangle", ratio)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             box_function=get_features,
             original_image=self.original_image,
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        self.assertTrue(result)
-        self.assertEqual([], feedback)
+        expected = None
+        self.assertEqual(expected, feedback.tojson(0.9))
+        self.assertAlmostEqual(feedback.probability, 1.0)
 
     @parameterized.expand(
         [
@@ -1076,6 +1240,7 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on x by a ratio of 1.0, which is too close to 0.9",
                     "The triangle was resized on y by a ratio of 1.5, which is too close to 1.6",
                 ],
+                (0.56,0.31,0.69)
             ),
             (
                 (2.1, 2.1),
@@ -1085,10 +1250,11 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on x by a ratio of 2.0, which is too close to 2.1",
                     "The triangle was resized on y by a ratio of 2.0, which is too close to 2.1",
                 ],
+                (0.24,0.24,0.42)
             ),
         ]
     )
-    def test_resize_negated_invalid(self, ratio, box_ori, box_cust, expected_feedback):
+    def test_resize_negated_invalid(self, ratio, box_ori, box_cust, expected_feedback,scores):
         original_features: list[BoundingBox] = [
             BoundingBox(*box_ori, "triangle"),
         ]
@@ -1107,14 +1273,34 @@ class TestExpression(unittest.TestCase):
             return ~size("triangle", ratio)
 
         expression: OracleExpression = test_valid_customization()
-        result, feedback = expression.evaluate(
+        feedback = expression.evaluate(
             original_image=self.original_image,
             custom_image=self.custom_image,
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertFalse(result)
-        self.assertEqual(expected_feedback, feedback)
+        expected = {
+            "type": "FeedBackAndList",
+            "probability": scores[2],
+            "items": [
+                {
+                    "type": "FeedBackOr",
+                    "probability": scores[2],
+                    "feedbackA": {
+                        "type": "FeedBack",
+                        "feedback": expected_feedback[0],
+                        "probability": scores[0],
+                    },
+                    "feedbackB": {
+                        "type": "FeedBack",
+                        "feedback": expected_feedback[1],
+                        "probability": scores[1],
+                    },
+                }
+            ],
+        }
+        self.assertEqual(expected, feedback.tojson(0.9))
+        self.assertAlmostEqual(feedback.probability, scores[2],delta=0.05)
 
     @parameterized.expand(
         [
@@ -1437,9 +1623,7 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual(
-            [
-                "The left eye should be contained in the feature right eye, but isn't."
-            ],
+            ["The left eye should be contained in the feature right eye, but isn't."],
             feedback,
         )
 
@@ -1471,9 +1655,7 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual(
-            [
-                f"The left eye should be contained in the feature right eye, but isn't."
-            ],
+            [f"The left eye should be contained in the feature right eye, but isn't."],
             feedback,
         )
 
@@ -1754,9 +1936,7 @@ class TestExpression(unittest.TestCase):
         )
         self.assertFalse(result)
         self.assertEqual(
-            [
-                "The dog's face should not be mirrored along the horizontal axis."
-            ],
+            ["The dog's face should not be mirrored along the horizontal axis."],
             feedback,
         )
 
@@ -1941,8 +2121,8 @@ class TestExpression(unittest.TestCase):
 
         feat_dict = {
             hash((self.custom_image.tobytes(), "circles")): [
-                BoundingBox(1,1,1,1, "circleA"),
-                BoundingBox(1,1,1,1, "circleB"),
+                BoundingBox(1, 1, 1, 1, "circleA"),
+                BoundingBox(1, 1, 1, 1, "circleB"),
             ]
         }
 
@@ -1969,8 +2149,8 @@ class TestExpression(unittest.TestCase):
 
         feat_dict = {
             hash((self.custom_image.tobytes(), "circles")): [
-                BoundingBox(1,1,1,1, "circleA"),
-                BoundingBox(1,1,1,1, "circleB"),
+                BoundingBox(1, 1, 1, 1, "circleA"),
+                BoundingBox(1, 1, 1, 1, "circleB"),
             ]
         }
 
@@ -1992,13 +2172,13 @@ class TestExpression(unittest.TestCase):
             ["The number of circles is 2, but should be 5."],
             feedback,
         )
-        
+
     def test_count_negated_valid(self):
 
         feat_dict = {
             hash((self.custom_image.tobytes(), "circles")): [
-                BoundingBox(1,1,1,1, "circleA"),
-                BoundingBox(1,1,1,1, "circleB"),
+                BoundingBox(1, 1, 1, 1, "circleA"),
+                BoundingBox(1, 1, 1, 1, "circleB"),
             ]
         }
 
@@ -2020,13 +2200,13 @@ class TestExpression(unittest.TestCase):
             [],
             feedback,
         )
-        
+
     def test_count_negated_invalid(self):
 
         feat_dict = {
             hash((self.custom_image.tobytes(), "circles")): [
-                BoundingBox(1,1,1,1, "circleA"),
-                BoundingBox(1,1,1,1, "circleB"),
+                BoundingBox(1, 1, 1, 1, "circleA"),
+                BoundingBox(1, 1, 1, 1, "circleB"),
             ]
         }
 
