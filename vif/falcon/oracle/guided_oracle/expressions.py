@@ -473,7 +473,6 @@ class position(OracleCondition):
             )
         ]
 
-
         return FeedBackAndList(feedbacks)
 
     def horizontal_oracle(
@@ -515,7 +514,7 @@ class angle(OracleCondition):
 
     def check_rotation(
         self, ori_seg: SegmentationMask, custom_seg: SegmentationMask
-    ) -> tuple[bool, str]:
+    ) -> FeedBack:
         ori_box = (ori_seg.x0, ori_seg.x1, ori_seg.y0, ori_seg.y1)
         custom_box = (custom_seg.x0, custom_seg.x1, custom_seg.y0, custom_seg.y1)
         cropped1 = crop_mask_with_box(ori_seg.mask, ori_box)
@@ -535,20 +534,24 @@ class angle(OracleCondition):
 
         sorted_IoUs = sorted(ious.items(), reverse=True)
         sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:5] for iou in ious[1]]
-        
-        #TODO somthing like that: deg_scores = [abs(self.degree - deg)/5 for deg in sorted_IoUs_degrees]
-        
+
+        deg_scores = [
+            min(abs(self.degree - deg) / 10, 1) for deg in sorted_IoUs_degrees
+        ]
+
+        score = 1 - min(deg_scores)
+
         condition = any(
             deg - 5 <= self.degree <= deg + 5 for deg in sorted_IoUs_degrees
         )
 
         if self.negated:
-            condition = not condition
+            score = 1 - score
             feedback = f"The {ori_seg.label} should not be rotated by {self.degree} degrees, and is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees, which is too close/equal."
         else:
             feedback = f"The {ori_seg.label} should be rotated by {self.degree} degrees, but is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees."
 
-        return (condition, feedback)
+        return FeedBack(feedback, score)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -576,9 +579,8 @@ class angle(OracleCondition):
             for ori_seg, custom_seg in seg_mapping
         ]
 
-        condition = all(cond for cond, _ in cond_feed)
-        feedbacks = [feed for cond, feed in cond_feed if not cond]
-        return (condition, feedbacks)
+        feedbacks = FeedBackAndList(cond_feed)
+        return feedbacks
 
     def test_angle(self, args):
         degree_test, cropped1, cropped2 = args
@@ -619,23 +621,27 @@ class color(OracleCondition):
             text_probs = (100.0 * image_features @ clip_encoded_color_names.T).softmax(
                 dim=-1
             )[0]
-        top_indice = np.argsort(-text_probs)[:accepted_color_ratio]
+        top_indice = np.argsort(-text_probs)  # [:accepted_color_ratio]
 
-        most_similar_colors = np.array(eval_colors)[top_indice]
+        ranked_colors = np.array(eval_colors)[top_indice]
 
-        condition = (
-            text_probs[0] > 0.5
-            or self.color_expected in most_similar_colors
-            or any(self.color_expected in cur_col for cur_col in most_similar_colors)
-        )
+        (index,) = np.where(ranked_colors == self.color_expected)
+
+        score = 1-(index/len(ranked_colors))
+        
+        # condition = (
+        #    text_probs[0] > 0.5
+        #    or self.color_expected in most_similar_colors
+        #    or any(self.color_expected in cur_col for cur_col in most_similar_colors)
+        # )
 
         feedback = f"The color of the {label} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in most_similar_colors[:3]])}."
 
         if self.negated:
-            condition = not condition
+            score = 1-score
             feedback = f"The color of the {label} should not have been {self.color_expected.removesuffix(" color")}, but is still too close to {self.color_expected.removesuffix(" color")}."
 
-        return (condition, feedback)
+        return FeedBack(feedback,score)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -666,10 +672,7 @@ class color(OracleCondition):
             for image_feature, seg in zip(image_features, cust_features)
         ]
 
-        condition = all([cond for cond, feed in cond_feed])
-        feedbacks = [feed for cond, feed in cond_feed if not cond]
-
-        return (condition, feedbacks)
+        return FeedBackAndList(cond_feed)
 
 
 class size(OracleCondition):
