@@ -171,7 +171,7 @@ class OracleGuidedCodeModule(OracleModule):
 
             self.identified_segments = []
             self.identified_boxes = []
-            result, feedbacks = expression.evaluate(
+            feedback = expression.evaluate(
                 original_image=base_image,
                 custom_image=image,
                 segment_function=self.segments_from_feature,
@@ -179,8 +179,7 @@ class OracleGuidedCodeModule(OracleModule):
                 check_property_function=self.eval_property,
             )
             return OracleResponse(
-                result,
-                feedbacks,
+                feedback,
                 evaluation_code=oracle_code,
                 seg_token_usage=self.segmentation_usage,
                 box_token_usage=self.box_usage,

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import os
 from typing import Any
 from openai import Client
+from vif.falcon.oracle.guided_oracle.feedback import FeedBacks
 from vif.models.detection import BoundingBox, SegmentationMask
 from vif.models.module import LLMmodule
 from PIL import Image
@@ -12,8 +13,7 @@ from PIL import Image
 
 @dataclass
 class OracleResponse:
-    condition: bool
-    feedbacks: list[str]
+    feedbacks: FeedBacks
     score_object: Any = None
     evaluation_code: str = None
     seg_token_usage: dict = None

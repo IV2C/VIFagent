@@ -1,4 +1,5 @@
 from dataclasses import asdict, dataclass
+import json
 from typing import Any
 from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 from vif.falcon.oracle.guided_oracle.guided_code_oracle import OracleGuidedCodeModule
@@ -84,7 +85,7 @@ class FalconVerifier(TexVerBaseline):
             return ver_eval_input
 
 
-        ver_eval_input.classified_score = 1.0 if or_response.condition else 0.0
+        ver_eval_input.classified_score = or_response.feedbacks.probability
         
         new_segmasks=[]
         for mask in or_response.segments:
@@ -94,7 +95,7 @@ class FalconVerifier(TexVerBaseline):
         
         fal_metadata = FalconVerifierMetadata(
             generated_code=or_response.evaluation_code,
-            feedback=or_response.feedbacks,
+            feedback=json.dumps(or_response.feedbacks.tojson(1.0)),
             boxes=or_response.boxes,
             segments=new_segmasks
         )
