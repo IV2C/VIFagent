@@ -9,7 +9,7 @@ from loguru import logger
 
 from vif.CodeMapper.feature import CodeImageMapping, MappedCode
 from vif.CodeMapper.mutation.tex_mutant_creator import TexMappingMutantCreator, TexMutantCreator
-from vif.utils.detection_utils import dsim_box, get_boxes
+from vif.utils.detection_utils import dsim_box
 
 
 class MappingModule:

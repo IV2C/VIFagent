@@ -17,6 +17,7 @@ from vif.falcon.oracle.guided_oracle.feedback import (
     FeedBackAnd,
     FeedBackAndList,
     FeedBackOr,
+    FeedBackOrList,
     FeedBacks,
 )
 from vif.models.detection import BoundingBox, SegmentationMask
@@ -201,6 +202,7 @@ class present(OracleCondition):
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         boxes = box_function(self.feature, custom_image)
+        boxes = [box for box in boxes if box!=None]
         if len(boxes) == 0:
             probability = 0
         else:
@@ -227,6 +229,9 @@ class removed(OracleCondition):
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         boxes = box_function(self.feature, custom_image)
+        
+        boxes = [box for box in boxes if box!=None]
+        
         if len(boxes) == 0:
             probability = 1
         else:
@@ -340,7 +345,7 @@ class placement(OracleCondition):
                 lambda labelA, labelB: f"The {labelA} is not under the {labelB}",
             ),
         }
-
+        self.negated = False
         super().__init__(feature)
 
     def __invert__(self):
@@ -352,7 +357,7 @@ class placement(OracleCondition):
         }
 
         self.direction = opposite.get(self.direction, self.direction)
-
+        self.negated = True
         return self
 
     def evaluate(
@@ -385,7 +390,11 @@ class placement(OracleCondition):
         ]
         feedbacks = [FeedBack(feed, int(cond)) for cond, feed in conditions_feedbacks]
 
-        return FeedBackAndList(feedbacks)
+        return (
+            FeedBackAndList(feedbacks)
+            if not self.negated
+            else FeedBackOrList(feedbacks)
+        )
 
 
 class position(OracleCondition):
@@ -473,7 +482,11 @@ class position(OracleCondition):
             )
         ]
 
-        return FeedBackAndList(feedbacks)
+        return (
+            FeedBackAndList(feedbacks)
+            if not self.negated
+            else FeedBackOrList(feedbacks)
+        )
 
     def horizontal_oracle(
         self, d1: tuple[int, int], d2: tuple[int, int], feat_name
@@ -575,8 +588,11 @@ class angle(OracleCondition):
             for ori_seg, custom_seg in seg_mapping
         ]
 
-        feedbacks = FeedBackAndList(cond_feed)
-        return feedbacks
+        return (
+            FeedBackAndList(cond_feed)
+            if not self.negated
+            else FeedBackOrList(cond_feed)
+        )
 
     def test_angle(self, args):
         degree_test, cropped1, cropped2 = args
@@ -671,7 +687,11 @@ class color(OracleCondition):
             for image_feature, seg in zip(image_features, cust_features)
         ]
 
-        return FeedBackAndList(cond_feed)
+        return (
+            FeedBackAndList(cond_feed)
+            if not self.negated
+            else FeedBackOrList(cond_feed)
+        )
 
 
 class size(OracleCondition):
@@ -750,8 +770,11 @@ class size(OracleCondition):
             self.check_size(ori_seg, custom_seg) for ori_seg, custom_seg in seg_mapping
         ]
 
-        return FeedBackAndList(cond_feed)
-        
+        return (
+            FeedBackAndList(cond_feed)
+            if not self.negated
+            else FeedBackOrList(cond_feed)
+        )
 
 
 ##model settings for shape and color detection
@@ -762,6 +785,7 @@ device = torch.device("cpu")
 clip_model = clip_model.to(device)
 clip_model.eval()
 clip_tokenizer = open_clip.get_tokenizer("ViT-B-32")
+accepted_shape_ratio = math.floor((1 / 10) * len(shapes))
 
 
 class shape(OracleCondition):
@@ -787,18 +811,24 @@ class shape(OracleCondition):
             text_probs = (100.0 * image_features @ clip_encoded_shape_names.T).softmax(
                 dim=-1
             )
-        top_indice = np.argsort(-text_probs[0])[:3]
+        top_indices = np.argsort(-text_probs[0])
 
-        most_similar_shapes = np.array(all_shapes)[top_indice]
+        ranked_shapes = np.array(all_shapes)[top_indices]
 
-        condition = self.req_shape in most_similar_shapes
-        feedback = f"The {label} should be in the shape of a {self.req_shape}, but looks more like a {','.join(most_similar_shapes[:2])}."
+        index = min(np.where(ranked_shapes == self.req_shape)[0])
+
+        if index < 2:
+            score = 1.0
+        else:
+            score = 1 - min((index - 2) / accepted_shape_ratio, 1)
+
+        feedback = f"The {label} should be in the shape of a {self.req_shape}, but looks more like a {ranked_shapes[0]}."
 
         if self.negated:
-            condition = not condition
+            score = 1 - score
             feedback = f"The {label} should not be in the shape of a {self.req_shape}, but still looks like a {self.req_shape}."
 
-        return (condition, feedback)
+        return FeedBack(feedback, score)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -821,10 +851,11 @@ class shape(OracleCondition):
             for mask_image, label in mask_images
         ]
 
-        condition = all(cond for cond, _ in cond_feed)
-        feedbacks = [feed for cond, feed in cond_feed if not cond]
-
-        return (condition, feedbacks)
+        return (
+            FeedBackAndList(cond_feed)
+            if not self.negated
+            else FeedBackOrList(cond_feed)
+        )
 
 
 class within(OracleCondition):
@@ -839,14 +870,13 @@ class within(OracleCondition):
 
     def check_within(self, segA: SegmentationMask, segB: SegmentationMask):
         score = np.logical_and(segA.mask, segB.mask).sum() / segA.mask.sum()
-        condition = round(score, 2) > 0.9
 
         feedback = f"The {segA.label} should be contained in the feature {segB.label}, but isn't."
 
         if self.negated:
-            condition = not condition
+            score = 1 - score
             feedback = f"The {segA.label} should not be contained in the feature {segB.label}, but is actually within it."
-        return (condition, feedback)
+        return FeedBack(feedback, score)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -871,10 +901,11 @@ class within(OracleCondition):
             self.check_within(segA, custom_seg_featB) for segA in custom_segs_featA
         ]
 
-        condition = all(cond for cond, _ in cond_feed)
-        feedbacks = [feed for cond, feed in cond_feed if not cond]
-
-        return (condition, feedbacks)
+        return (
+            FeedBackAndList(cond_feed)
+            if not self.negated
+            else FeedBackOrList(cond_feed)
+        )
 
 
 class mirrored(OracleCondition):
@@ -915,18 +946,21 @@ class mirrored(OracleCondition):
 
         mirrored_cropped1 = pad_center(mirrored_cropped1, H, W)
         cropped2 = pad_center(cropped2, H, W)
-        norm_mse = nmse_np(mirrored_cropped1, cropped2)
-        condition = round(norm_mse, 2) < 0.1
+        inv_norm_mse = 1 - nmse_np(mirrored_cropped1, cropped2)
+        if inv_norm_mse > 0.95:
+            score = 1
+        else:
+            score = max((inv_norm_mse - 0.5) / 0.45, 0)
 
         if self.negated:
-            condition = not condition
+            score = 1 - score
             feedback = f"The {ori_seg.label} should not be mirrored along the {self.axis} axis."
         else:
             feedback = (
                 f"The {ori_seg.label} should be mirrored along the {self.axis} axis."
             )
 
-        return (condition, feedback)
+        return FeedBack(feedback, score)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -954,9 +988,11 @@ class mirrored(OracleCondition):
             for ori_seg, custom_seg in seg_mapping
         ]
 
-        condition = all(cond for cond, _ in cond_feed)
-        feedbacks = [feed for cond, feed in cond_feed if not cond]
-        return (condition, feedbacks)
+        return (
+            FeedBackAndList(cond_feed)
+            if not self.negated
+            else FeedBackOrList(cond_feed)
+        )
 
 
 import statistics
@@ -994,47 +1030,55 @@ class aligned(OracleCondition):
             for box in custom_boxes_featA + custom_boxes_featB
         ]
 
-        accepted_x_delta = 0.05 * max((box.x1 - box.x0) for box, _ in box_center_boxes)
-        accepted_y_delta = 0.05 * max((box.y1 - box.y0) for box, _ in box_center_boxes)
+        accepted_x_delta = 0.1 * max((box.x1 - box.x0) for box, _ in box_center_boxes)
+        accepted_y_delta = 0.1 * max((box.y1 - box.y0) for box, _ in box_center_boxes)
 
         x_med = statistics.median_low([center[0] for _, center in box_center_boxes])
         y_med = statistics.median_low([center[1] for _, center in box_center_boxes])
 
-        label_conditions_x = [
+        label_score_x = [
             (
                 box.label,
-                (x_med - accepted_x_delta <= center[0] <= x_med + accepted_x_delta),
+                (1 - min(abs(center[0] - x_med) / accepted_x_delta, 1)),
             )
             for box, center in box_center_boxes
         ]
-        label_conditions_y = [
+        label_score_y = [
             (
                 box.label,
-                (y_med - accepted_y_delta <= center[1] <= y_med + accepted_y_delta),
+                (1 - min(abs(center[1] - y_med) / accepted_y_delta, 1)),
             )
             for box, center in box_center_boxes
         ]
 
         match self.axis:
             case Axis.horizontal:
-                label_conditions = label_conditions_y
+                label_conditions = label_score_y
 
             case Axis.vertical:
-                label_conditions = label_conditions_x
+                label_conditions = label_score_x
         condition = all([condition for _, condition in label_conditions])
         feedbacks = [
-            f"The {label} should be aligned {self.axis}ly w.r.t. the features {self.feature} and {self.other_feature}."
-            for label, condition in label_conditions
-            if not condition
+            FeedBack(
+                f"The {label} should be aligned {self.axis}ly w.r.t. the features {self.feature} and {self.other_feature}.",
+                score,
+            )
+            for label, score in label_conditions
         ]
         if self.negated:
             condition = not condition
             feedbacks = [
-                f"The {label} should not be aligned {self.axis}ly w.r.t. the features {self.feature} and {self.other_feature}."
-                for label, condition in label_conditions
-                if condition
+                FeedBack(
+                    f"The {label} should not be aligned {self.axis}ly w.r.t. the features {self.feature} and {self.other_feature}.",
+                    1 - score,
+                )
+                for label, score in label_conditions
             ]
-        return (condition, feedbacks)
+        return (
+            FeedBackAndList(feedbacks)
+            if not self.negated
+            else FeedBackOrList(feedbacks)
+        )
 
 
 class count(OracleCondition):
@@ -1058,4 +1102,4 @@ class count(OracleCondition):
         if self.negated:
             condition = not condition
             feedback = f"The number of {self.feature} should not be {self.amount}."
-        return (condition, [feedback] if not condition else [])
+        return FeedBack(feedback, 0.8 if condition else 0.2)
