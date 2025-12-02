@@ -6,6 +6,7 @@ from loguru import logger
 from openai import Client
 
 from vif.baselines.models import RegexException
+from vif.falcon.oracle.guided_oracle.feedback import FeedBack, FeedBacks
 from vif.falcon.oracle.oracle import OracleModule, OracleResponse
 from PIL import Image
 import hashlib
@@ -14,7 +15,7 @@ from vif.models.detection import BoundingBox, SegmentationMask
 from vif.models.exceptions import JsonFormatError, LLMDetectionException, ParsingError
 from vif.prompts.oracle_prompts import (
     ORACLE_CODE_PROMPT,
-    ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT,
+    ORACLE_CODE_EXPR_SYSTEM_PROMPT,
     ORACLE_PROPERTY_USAGE_PROMPT,
 )
 from vif.prompts.property_check_prompt import PROPERTY_PROMPT
@@ -82,13 +83,14 @@ class OracleGuidedCodeModule(OracleModule):
 
         oracle_code_instructions = ORACLE_CODE_PROMPT.format(instruction=instruction)
         encoded_image = encode_image(base_image)
+        logger.debug(instruction)
         response = self.client.chat.completions.create(
             model=self.model,
             temperature=self.temperature,
             messages=[
                 {
                     "role": "system",
-                    "content": ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT
+                    "content": ORACLE_CODE_EXPR_SYSTEM_PROMPT
                     + "\n"
                     + ORACLE_PROPERTY_USAGE_PROMPT,
                 },
@@ -264,7 +266,7 @@ class OracleGuidedCodeModule(OracleModule):
         custom_image: Image.Image,
         property_to_check: str,
         negated: bool,
-    ) -> tuple[bool, list[str]]:
+    ) -> FeedBacks:
 
         concat_image = concat_images_horizontally([original_image, custom_image])
         encoded_image = encode_image(concat_image)
@@ -291,16 +293,16 @@ class OracleGuidedCodeModule(OracleModule):
             ],
         )
         cnt = response.choices[0].message.content
-        pattern = r"\\boxed{(True|False)}"
+        pattern = r"\\boxed{([0-1]\.?[0-9]?)}"
         id_match = re.search(pattern, cnt)
 
         if not id_match:
-            raise RegexException(pattern, cnt)
+            raise RegexException(pattern=pattern, content=cnt)
 
-        condition = id_match.group(1) == "True"
+        res_score = float(id_match.group(1))
         self.property_usage[property_to_check] = response.usage
         if negated:
-            condition = not condition
+            res_score = 1- res_score
             feedback = (
                 f'The property "{property_to_check}" is applied, but shouldn\'t be.'
             )
@@ -308,4 +310,4 @@ class OracleGuidedCodeModule(OracleModule):
             feedback = (
                 f'The property "{property_to_check}" is not applied, but should be.'
             )
-        return (condition, [feedback] if not condition else [])
+        return FeedBack(feedback,res_score)

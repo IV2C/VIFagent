@@ -23,7 +23,7 @@ from google import genai
 from google.genai import types as genTypes
 
 
-full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")
+#full_seg_cache = instantiate_cache(True, ".tmp/cache", "seg_cache")
 
 
 def key_function(func, *args, **kwargs):

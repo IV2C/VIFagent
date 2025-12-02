@@ -15,7 +15,7 @@ class FeedBack:
         return {
             "type": "FeedBack",
             "feedback": self.feedback,
-            "probability": round(self.probability,2),
+            "probability": round(self.probability, 2),
         }
 
     @staticmethod
@@ -23,8 +23,8 @@ class FeedBack:
         detection_items: list, feature_name: str, im_name: str = "customized"
     ):
         if len(detection_items) == 0:
-            return Self(
-                0, f"No feature {feature_name} was detected in the {im_name} image"
+            return FeedBack(
+                f"No feature {feature_name} was detected in the {im_name} image", 0
             )
         return False
 
@@ -50,7 +50,7 @@ class FeedBackCond:
 
         return {
             "type": self.__class__.__name__,
-            "probability": round(self.probability,2),
+            "probability": round(self.probability, 2),
             "feedbackA": a,
             "feedbackB": b,
         }
@@ -90,7 +90,7 @@ class FeedBackListBase:
 
         return {
             "type": self.__class__.__name__,
-            "probability": round(self.probability,2),
+            "probability": round(self.probability, 2),
             "items": children,
         }
 

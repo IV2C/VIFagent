@@ -2,6 +2,8 @@ from collections.abc import Callable
 from vif.falcon.oracle.guided_oracle.expressions import OracleExpression
 from PIL import Image
 
+from vif.falcon.oracle.guided_oracle.feedback import FeedBacks
+
 
 
 class visual_property(OracleExpression):
@@ -20,7 +22,7 @@ class visual_property(OracleExpression):
         original_image: Image.Image,
         custom_image: Image.Image,
         check_property_function: Callable[
-            [Image.Image, Image.Image, str,bool], tuple[bool, list[str]]
-        ],
-    ) -> tuple[bool, list[str]]:
+            [Image.Image, Image.Image, str,bool], FeedBacks
+        ], **kwargs
+    ) -> FeedBacks:
         return check_property_function(original_image,custom_image,self.property,self.negated)

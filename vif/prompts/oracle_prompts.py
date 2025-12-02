@@ -134,7 +134,7 @@ Result:
 """
 
 
-ORACLE_CODE_BOOLEAN_SYSTEM_PROMPT: str = '''
+ORACLE_CODE_EXPR_SYSTEM_PROMPT: str = '''
 You are an expert Python coding assistant. You will be provided with:
 - An original image
 - A prompt describing a visual modification
@@ -261,6 +261,7 @@ For example, if you use "circles" as a feature, every instance of a circle will 
 You can give very detailed description of the feature you are searching for to make them unambiguous. When using these parameters, ensure the features are identifiable both in the initial and modified image.
 For example, if the instruction describes a color change, do not use the color as an attribute of the feature because it will not be the same in the modified image.
 You can use boolean operators such as "not", "and", and "or" for each type of condition, as well as intermediary variables. However you cannot use keywords like any() or all() 
+Make sure that all the statements are useful in your function, and that they are used in the return.
 The examples below show examples with overly simple features, in the real case you will have to provide highly detailed and higher level features. 
 Here are some very simple examples in which the image is only described, but in the real setup you will be provided real images:
 
@@ -346,7 +347,7 @@ Prompt: change the color fo the black circles to blue and move them upward by a 
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-   return color("circles","blue") and position("circles","red square",ratio=2.0, axis="vertical")
+   return color("circles","blue") and position("circles","red square",ratio=2.0, axis="vertical") and placement("circles","red square","ove")
 ```
 '''
 
@@ -371,7 +372,7 @@ Prompt: Make the person look scared.
 Expected output:
 ```python
 def test_valid_customization() -> bool:
-   return visual_property("The person is now looking scared")
+   return visual_property("The person now looks scared")
 ```
 '''
 
