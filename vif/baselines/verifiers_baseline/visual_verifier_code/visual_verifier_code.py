@@ -29,7 +29,7 @@ Ensure the code is executable, and there are no errors in it.
 
 Your goal is to verify, by using Python code, whether the instruction has been correctly applied.
 You must always call the tool eval code, unless you are satisfied with the tool call output and want to answer.
-Then, your final response must always contain the final answer in the format:
+The output of the code will be given back to you, you must use it to create your final response, which must always contain the final answer in the format:
 \\boxed{score}
 
 With score being a float between 0 and 1.
