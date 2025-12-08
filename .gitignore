@@ -21,3 +21,5 @@ notebooks/verifier_ds_creation/originalcode.tex
 notebooks/verifier_execution/**-ds_conc**
 notebooks/verifier_execution/**-ds**
 notebooks/verifier_execution/datasets/**
+notebooks/verifier_ds_creation/full_raw_gen_ds
+notebooks/verifier_ds_creation/full_raw_gen_ds_image
