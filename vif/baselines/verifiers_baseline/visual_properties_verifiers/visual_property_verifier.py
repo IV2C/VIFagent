@@ -11,7 +11,7 @@ from vif.baselines.verifiers_baseline.ver_baseline import TexVerBaseline
 from vif.utils.image_utils import concat_images_horizontally, encode_image
 
 GET_PROPERTIES_SYSTEM_PROMPT: str = """
-You are a verification agent. You will be given an instruction and an original image.
+You are a verification agent. You will be given a customization instruction and an original image.
 Your task is to list the properties that must be applied to the image to ensure that the requested customization is correctly made.
 
 Your answer must always end with the exact following format:
