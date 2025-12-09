@@ -12,5 +12,8 @@ from vif.falcon.oracle.guided_oracle.expressions import (
     within,
     mirrored,
 )
+
+
 def test_valid_customization() -> bool:
     return color("cat nose", "blue")
+
