@@ -30,7 +30,7 @@ class FeedBack:
         self.name = name
 
     def tojson(self, threshold: float = 1) -> dict | None:
-        if self.score > threshold:
+        if self.probability > threshold:
             return None
         return {
             "type": "FeedBack",
@@ -61,7 +61,7 @@ class FeedBackCond:
         self.probability = 0
 
     def tojson(self, threshold: float = 1) -> dict | None:
-        if self.score > threshold:
+        if self.probability > threshold:
             return None
 
         a = self.feedbackA.tojson(threshold)
@@ -123,7 +123,7 @@ class FeedBackOrList(FeedBackListBase):
         super().__init__(items)
         p = 1
         for x in self.items:
-            p *= 1 - x.score
+            p *= 1 - x.probability
         self.probability = 1 - p
 
 
@@ -132,5 +132,5 @@ class FeedBackAndList(FeedBackListBase):
         super().__init__(items)
         p = 1
         for x in self.items:
-            p *= x.score
+            p *= x.probability
         self.probability = p

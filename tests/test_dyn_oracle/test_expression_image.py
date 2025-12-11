@@ -183,7 +183,7 @@ class TestExpression(unittest.TestCase):
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertAlmostEqual(1.0, feedback.probability)
+        self.assertAlmostEqual(1.0, feedback.probability, delta=0.01)
         expected = None
 
         self.assertEqual(expected, feedback.tojson(threshold=0.5))
@@ -364,7 +364,7 @@ class TestExpression(unittest.TestCase):
             box_function=get_features,
         )
 
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.05)
 
         expected = None
         self.assertEqual(expected, feedback.tojson(0.5))
@@ -413,7 +413,7 @@ class TestExpression(unittest.TestCase):
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.1)
 
         expected = None
         self.assertEqual(expected, feedback.tojson(0.5))
@@ -463,20 +463,26 @@ class TestExpression(unittest.TestCase):
             segment_function=get_features,
             box_function=get_features,
         )
-        self.assertAlmostEqual(feedback.probability, 0.21875)
+        self.assertAlmostEqual(feedback.probability, 0.165, delta=0.05)
         expected = {
             "type": "FeedBackAndList",
-            "probability": 0.22,
+            "probability": 0.17,
             "items": [
                 {
                     "type": "FeedBack",
                     "feedback": "The vertical distance between triangle1 and rectangle was supposed to be around 20.0, but was 19.5.",
-                    "probability": 0.88,
+                    "probability": 0.90,
+                    "score": 0.025,
+                    "name": "position",
+                    "negated": False,
                 },
                 {
                     "type": "FeedBack",
                     "feedback": "The vertical distance between triangle2 and rectangle was supposed to be around 20.0, but was 17.0.",
-                    "probability": 0.25,
+                    "probability": 0.18,
+                    "score": 0.15,
+                    "name": "position",
+                    "negated": False,
                 },
             ],
         }
@@ -536,7 +542,7 @@ class TestExpression(unittest.TestCase):
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.5)
         expected = None
         self.assertEqual(expected, feedback.tojson(0.9))
 
@@ -597,15 +603,18 @@ class TestExpression(unittest.TestCase):
             box_function=get_features,
             segment_function=get_features,
         )
-        self.assertAlmostEqual(feedback.probability, 0.0)
+        self.assertAlmostEqual(feedback.probability, 0.0, delta=0.05)
         expected = {
             "type": "FeedBackOrList",
-            "probability": 0.0,
+            "probability": 0.05,
             "items": [
                 {
                     "type": "FeedBack",
                     "feedback": feedback_expected,
-                    "probability": 0.0,
+                    "score": 0,
+                    "probability": 0.05,
+                    "name": "position",
+                    "negated": True,
                 }
             ],
         }
@@ -661,22 +670,22 @@ class TestExpression(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (85, 0.0),
-            (90, 0.0),
-            (95, 0.0),
-            (-85, 0.0),
-            (-90, 0.0),
-            (-95, 0.0),
-            (175, 0.0),
-            (180, 0.0),
-            (185, 0.0),
-            (-175, 0.0),
-            (-180, 0.0),
-            (-185, 0.0),
-            (55, 0.5),
+            (85, 0.0, 35),
+            (90, 0.0, 40),
+            (95, 0.0, 35),
+            (-85, 0.0, 35),
+            (-90, 0.0, 40),
+            (-95, 0.0, 35),
+            (175, 0.0, 35),
+            (180, 0.0, 40),
+            (185, 0.0, 45),
+            (-175, 0.0, 35),
+            (-180, 0.0, 40),
+            (-185, 0.0, 45),
+            (55, 0.5, 5),
         ]
     )
-    def test_rotated_invalid(self, degree, expected_score):
+    def test_rotated_invalid(self, degree, expected_score, score):
         import pickle
 
         original_features: list[SegmentationMask] = pickle.loads(
@@ -705,7 +714,7 @@ class TestExpression(unittest.TestCase):
         )
         expected_feedback = f"The blue square should be rotated by {degree} degrees, but is rotated by -135,45,-45,135 degrees."
 
-        self.assertAlmostEqual(feedback.probability, expected_score)
+        self.assertAlmostEqual(feedback.probability, expected_score, delta=0.05)
         expected = {
             "type": "FeedBackAndList",
             "probability": expected_score,
@@ -714,6 +723,9 @@ class TestExpression(unittest.TestCase):
                     "type": "FeedBack",
                     "feedback": expected_feedback,
                     "probability": expected_score,
+                    "score": score,
+                    "name": "angle",
+                    "negated": False,
                 }
             ],
         }
@@ -769,22 +781,22 @@ class TestExpression(unittest.TestCase):
 
     @parameterized.expand(
         [
-            (40, 0.0),
-            (45, 0.0),
-            (50, 0.0),
-            (-40, 0.0),
-            (-45, 0.0),
-            (-50, 0.0),
-            (130, 0.0),
-            (135, 0.0),
-            (140, 0.0),
-            (-130, 0.0),
-            (-135, 0.0),
-            (-140, 0.0),
-            (55, 0.5),
+            (40, 0.0, 0.0),
+            (45, 0.0, 0.0),
+            (50, 0.0, 0.0),
+            (-40, 0.0, 0.0),
+            (-45, 0.0, 0.0),
+            (-50, 0.0, 0.0),
+            (130, 0.0, 0.0),
+            (135, 0.0, 0.0),
+            (140, 0.0, 0.0),
+            (-130, 0.0, 0.0),
+            (-135, 0.0, 0.0),
+            (-140, 0.0, 0.0),
+            (55, 0.5, 5),
         ]
     )
-    def test_rotated_negated_invalid(self, degree, expected_score):
+    def test_rotated_negated_invalid(self, degree, expected_score, score):
         import pickle
 
         original_features: list[SegmentationMask] = pickle.loads(
@@ -821,6 +833,9 @@ class TestExpression(unittest.TestCase):
                     "type": "FeedBack",
                     "feedback": expected_feedback,
                     "probability": expected_score,
+                    "score": score,
+                    "name": "angle",
+                    "negated": True,
                 }
             ],
         }
@@ -855,8 +870,10 @@ class TestExpression(unittest.TestCase):
         expected = None
         self.assertEqual(expected, feedback.tojson(0.9))
 
-    @parameterized.expand([("white", 0.0), ("green", 0.0), ("yellowish gray", 0.0)])
-    def test_color_invalid(self, color_expected, expected_score):
+    @parameterized.expand(
+        [("white", 0.0, 10), ("green", 0.0, 30), ("yellowish gray", 0.0, 16)]
+    )
+    def test_color_invalid(self, color_expected, expected_score, score):
         import pickle
 
         custom_features: list[SegmentationMask] = pickle.loads(
@@ -890,6 +907,9 @@ class TestExpression(unittest.TestCase):
                     "type": "FeedBack",
                     "feedback": expected_feedback,
                     "probability": expected_score,
+                    "score": score,
+                    "name": "color",
+                    "negated": False,
                 }
             ],
         }
@@ -925,8 +945,8 @@ class TestExpression(unittest.TestCase):
         expected = None
         self.assertEqual(expected, feedback.tojson(0.9))
 
-    @parameterized.expand(["pale blue", "light blue", "very light blue"])
-    def test_color_negated_invalid(self, color_expected):
+    @parameterized.expand([("pale blue", 2), ("light blue", 3), ("very light blue", 2)])
+    def test_color_negated_invalid(self, color_expected, score):
         import pickle
 
         custom_features: list[SegmentationMask] = pickle.loads(
@@ -953,15 +973,18 @@ class TestExpression(unittest.TestCase):
         )
         expected_feedback = f"The color of the blue square should not have been {color_expected}, but is still too close to {color_expected}."
 
-        self.assertAlmostEqual(feedback.probability, 0.0)
+        self.assertAlmostEqual(feedback.probability, 0.0, delta=0.05)
         expected = {
-            "type": "FeedBackAndList",
+            "type": "FeedBackOrList",
             "probability": 0.0,
             "items": [
                 {
                     "type": "FeedBack",
                     "feedback": expected_feedback,
                     "probability": 0.0,
+                    "score": score,
+                    "name": "color",
+                    "negated": True,
                 }
             ],
         }
@@ -1133,6 +1156,11 @@ class TestExpression(unittest.TestCase):
                 [
                     "The triangle was resized on y by a ratio of 1.5, but should have been by a ratio of 2"
                 ],
+                0.25,
+                0.0,
+                0.12,
+                0.95,
+                0.11
             ),
             (
                 (3, 3),
@@ -1142,10 +1170,14 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on y by a ratio of 2.0, but should have been by a ratio of 3",
                     "The triangle was resized on x by a ratio of 2.0, but should have been by a ratio of 3",
                 ],
+                1/3,
+                1/3, 0.02,
+                0.02,
+                0.0
             ),
         ]
     )
-    def test_resize_invalid(self, ratio, box_ori, box_cust, expected_feedback):
+    def test_resize_invalid(self, ratio, box_ori, box_cust, expected_feedback, score0,score1,prob0,prob1,prob):
         original_features: list[BoundingBox] = [
             BoundingBox(*box_ori, "triangle"),
         ]
@@ -1171,20 +1203,23 @@ class TestExpression(unittest.TestCase):
             segment_function=get_features,
         )
 
-        self.assertAlmostEqual(feedback.probability, 0.0)
+        self.assertAlmostEqual(feedback.probability, prob,delta=0.05)
         expected = {
             "type": "FeedBackAndList",
-            "probability": 0.0,
+            "probability": prob,
             "items": [
                 {
                     "type": "FeedBackAnd",
-                    "probability": 0.0,
+                    "probability": prob,
                     "feedbackA": (
                         (
                             {
                                 "type": "FeedBack",
                                 "feedback": expected_feedback[1],
-                                "probability": 0.0,
+                                "probability": prob1,
+                                "score": score1,
+                                "name": "size",
+                                "negated": False,
                             }
                         )
                         if len(expected_feedback) > 1
@@ -1193,7 +1228,10 @@ class TestExpression(unittest.TestCase):
                     "feedbackB": {
                         "type": "FeedBack",
                         "feedback": expected_feedback[0],
-                        "probability": 0.0,
+                        "probability": prob0,
+                        "score": score0,
+                        "name": "size",
+                        "negated": False,
                     },
                 }
             ],

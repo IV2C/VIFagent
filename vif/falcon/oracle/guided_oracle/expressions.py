@@ -365,7 +365,14 @@ class placement(OracleCondition):
             for labelB, center_boxB in label_centers_boxB
         ]
         feedbacks = [
-            FeedBack(feed, int(cond), self.__class__.__name__, a=self.a, b=self.b,negated=self.negated)
+            FeedBack(
+                feed,
+                int(cond),
+                self.__class__.__name__,
+                a=self.a,
+                b=self.b,
+                negated=self.negated,
+            )
             for cond, feed in conditions_feedbacks
         ]
 
@@ -382,9 +389,9 @@ class position(OracleCondition):
         self.axis = axis
         self.ratio = ratio
         self.negated = False
-        self.a = 0.5
-        self.b=10
-        super().__init__(feature)
+        self.a = 0.1
+        self.b = -30
+        super().__init__(feature,self.a,self.b)
 
     def __invert__(self):
         self.negated = True
@@ -474,33 +481,34 @@ class position(OracleCondition):
     ) -> FeedBack:
         expected_distance = self.ratio * d1[0]
 
-        score = 1 - min(1, (abs(d2[0] - expected_distance) / (0.2 * expected_distance)))
+        score = abs(d2[0] - expected_distance)/expected_distance
 
         if self.negated:
             feedback = f"The horizontal distance between {feat_name} and {self.other_feature} is {d2[0]} which is too close to {expected_distance}."
-            return FeedBack(feedback, 1 - score)
-
-        feedback = f"The horizontal distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
-        return FeedBack(feedback, score)
+        else:
+            feedback = f"The horizontal distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[0]}."
+        return FeedBack(feedback, score, self.__class__.__name__, a=self.a, b=self.b,negated=self.negated)
 
     def vertical_oracle(
         self, d1: tuple[int, int], d2: tuple[int, int], feat_name
     ) -> tuple[bool, str]:
         expected_distance = self.ratio * d1[1]
-        score = 1 - min(1, (abs(d2[1] - expected_distance) / (0.2 * expected_distance)))
+        score = abs(d2[1] - expected_distance)/expected_distance
 
         if self.negated:
             feedback = f"The vertical distance between {feat_name} and {self.other_feature} is {d2[1]} which is too close to {expected_distance}."
-            return FeedBack(feedback, 1 - score)
-        feedback = f"The vertical distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[1]}."
-        return FeedBack(feedback, score)
+        else:
+            feedback = f"The vertical distance between {feat_name} and {self.other_feature} was supposed to be around {expected_distance}, but was {d2[1]}."
+        return FeedBack(feedback, score, self.__class__.__name__, a=self.a, b=self.b,negated=self.negated)
 
 
 class angle(OracleCondition):
     def __init__(self, feature: str, degree: int):
         self.degree = degree
         self.negated = False
-        super().__init__(feature)
+        self.a = 5
+        self.b = -4
+        super().__init__(feature,self.a,self.b)
 
     def __invert__(self):
         self.negated = True
@@ -530,18 +538,17 @@ class angle(OracleCondition):
         sorted_IoUs_degrees = [iou for ious in sorted_IoUs[:3] for iou in ious[1]]
 
         deg_scores = [
-            min(abs(self.degree - deg) / 10, 1) for deg in sorted_IoUs_degrees
+            abs(self.degree - deg) for deg in sorted_IoUs_degrees
         ]
 
-        score = 1 - min(deg_scores)
+        score = min(deg_scores)
 
         if self.negated:
-            score = 1 - score
             feedback = f"The {ori_seg.label} should not be rotated by {self.degree} degrees, and is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees, which is too close/equal."
         else:
             feedback = f"The {ori_seg.label} should be rotated by {self.degree} degrees, but is rotated by {",".join([str(io) for io in sorted_IoUs[0][1]+sorted_IoUs[1][1]])} degrees."
 
-        return FeedBack(feedback, score)
+        return FeedBack(feedback, score,self.__class__.__name__,a=self.a,b=self.b,negated=self.negated)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -586,8 +593,9 @@ class color(OracleCondition):
     def __init__(self, feature: str, color_expected: str):
         self.color_expected = color_expected + " color"
         self.negated = False
-
-        super().__init__(feature)
+        self.a = 5
+        self.b = -4
+        super().__init__(feature,self.a,self.b)
 
     def __invert__(self):
         self.negated = True
@@ -620,10 +628,7 @@ class color(OracleCondition):
 
         index = min(np.where(ranked_colors == self.color_expected)[0])
 
-        if index < 5:
-            score = 1.0
-        else:
-            score = 1 - min((index - 5) / accepted_color_ratio, 1)
+        score = index
 
         # condition = (
         #    text_probs[0] > 0.5
@@ -634,10 +639,9 @@ class color(OracleCondition):
         feedback = f"The color of the {label} should have been {self.color_expected.removesuffix(" color")}, but is closer to {", ".join([c.removesuffix(" color") for c in ranked_colors[:3]])}."
 
         if self.negated:
-            score = 1 - score
             feedback = f"The color of the {label} should not have been {self.color_expected.removesuffix(" color")}, but is still too close to {self.color_expected.removesuffix(" color")}."
 
-        return FeedBack(feedback, score)
+        return FeedBack(feedback, score,self.__class__.__name__,a=self.a,b=self.b,negated=self.negated)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
@@ -679,8 +683,9 @@ class size(OracleCondition):
     def __init__(self, feature: str, ratio: tuple[float, float]):
         self.ratio = ratio
         self.negated = False
-        self.delta = 0.2
-        super().__init__(feature)
+        self.a = 0.15
+        self.b = -20
+        super().__init__(feature,self.a,self.b)
 
     def __invert__(self):
         self.negated = True
@@ -694,22 +699,18 @@ class size(OracleCondition):
             ori_feature.y1 - ori_feature.y0
         )
 
-        x_score = 1 - min(
-            abs(x_ratio - self.ratio[0]) / (self.delta * self.ratio[0]), 1
-        )
-        y_score = 1 - min(
-            abs(y_ratio - self.ratio[1]) / (self.delta * self.ratio[1]), 1
-        )
+        x_score = abs(x_ratio - self.ratio[0]) / self.ratio[0]
+        y_score = abs(y_ratio - self.ratio[1]) / self.ratio[1]
 
         if self.negated:
             return FeedBackOr(
                 FeedBack(
                     f"The {ori_feature.label} was resized on x by a ratio of {x_ratio}, which is too close to {self.ratio[0]}",
-                    1 - x_score,
+                    x_score,self.__class__.__name__,a=self.a,b=self.b,negated=self.negated
                 ),
                 FeedBack(
                     f"The {ori_feature.label} was resized on y by a ratio of {y_ratio}, which is too close to {self.ratio[1]}",
-                    1 - y_score,
+                    y_score,self.__class__.__name__,a=self.a,b=self.b,negated=self.negated
                 ),
             )
         else:
@@ -717,10 +718,11 @@ class size(OracleCondition):
                 FeedBack(
                     f"The {ori_feature.label} was resized on x by a ratio of {x_ratio}, but should have been by a ratio of {self.ratio[0]}",
                     x_score,
+                    self.__class__.__name__,a=self.a,b=self.b,negated=self.negated
                 ),
                 FeedBack(
                     f"The {ori_feature.label} was resized on y by a ratio of {y_ratio}, but should have been by a ratio of {self.ratio[1]}",
-                    y_score,
+                    y_score,self.__class__.__name__,a=self.a,b=self.b,negated=self.negated
                 ),
             )
 
