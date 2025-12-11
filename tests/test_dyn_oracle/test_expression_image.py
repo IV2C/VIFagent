@@ -124,7 +124,14 @@ class TestExpression(unittest.TestCase):
             "type": "FeedBackAndList",
             "probability": 0,
             "items": [
-                {"type": "FeedBack", "feedback": feedback_expected, "probability": 0}
+                {
+                    "type": "FeedBack",
+                    "name": "placement",
+                    "score": 0,
+                    "feedback": feedback_expected,
+                    "probability": 0,
+                    "negated": False,
+                }
             ],
         }
         self.assertEqual(expected, feedback.tojson(0.5))
@@ -290,11 +297,17 @@ class TestExpression(unittest.TestCase):
                     "type": "FeedBack",
                     "feedback": "The triangleA is not on the right of the rectangleA",
                     "probability": 0,
+                    "score": 0,
+                    "name": "placement",
+                    "negated": False,
                 },
                 {
                     "type": "FeedBack",
                     "feedback": "The triangleA is not on the right of the rectangleB",
+                    "score": 0,
                     "probability": 0,
+                    "name": "placement",
+                    "negated": False,
                 },
             ],
         }
@@ -2246,7 +2259,7 @@ class TestExpression(unittest.TestCase):
         expected = None
         self.assertEqual(expected, feedback.tojson(0.7))
         self.assertAlmostEqual(feedback.probability, 0.8, delta=0.05)
-        
+
     def test_count_invalid(self):
 
         feat_dict = {
@@ -2270,10 +2283,10 @@ class TestExpression(unittest.TestCase):
             segment_function=get_features,
         )
         expected = {
-                    "type": "FeedBack",
-                    "feedback": "The number of circles is 2, but should be 5.",
-                    "probability": 0.2,
-                }
+            "type": "FeedBack",
+            "feedback": "The number of circles is 2, but should be 5.",
+            "probability": 0.2,
+        }
         self.assertEqual(expected, feedback.tojson(0.9))
         self.assertAlmostEqual(feedback.probability, 0.2, delta=0.05)
 
@@ -2299,12 +2312,11 @@ class TestExpression(unittest.TestCase):
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        
+
         expected = None
         self.assertEqual(expected, feedback.tojson(0.7))
         self.assertAlmostEqual(feedback.probability, 0.8, delta=0.05)
-        
-      
+
     def test_count_negated_invalid(self):
 
         feat_dict = {
@@ -2327,12 +2339,11 @@ class TestExpression(unittest.TestCase):
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        
+
         expected = {
-                    "type": "FeedBack",
-                    "feedback": "The number of circles should not be 2.",
-                    "probability": 0.2,
-                }
+            "type": "FeedBack",
+            "feedback": "The number of circles should not be 2.",
+            "probability": 0.2,
+        }
         self.assertEqual(expected, feedback.tojson(0.9))
         self.assertAlmostEqual(feedback.probability, 0.2, delta=0.05)
-       

@@ -85,7 +85,7 @@ class FalconVerifier(TexVerBaseline):
             return ver_eval_input
 
 
-        ver_eval_input.classified_score = or_response.feedbacks.probability
+        ver_eval_input.classified_score = or_response.feedbacks.score
         
         new_segmasks=[]
         for mask in or_response.segments:

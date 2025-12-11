@@ -2,20 +2,43 @@ import json
 from typing import Self, Union
 
 type FeedBacks = FeedBack | FeedBackCond | FeedBackListBase
+import math
+
+
+def p_sigmoid(x, a, b):
+    return 1 / (1 + math.exp(-b * (x - a)))
 
 
 class FeedBack:
-    def __init__(self, feedback: str, probability: float):
+    def __init__(
+        self,
+        feedback: str,
+        score: float,
+        name: str,
+        a: float = 50.0,
+        b: float = 1,
+        negated=False,
+    ):
         self.feedback = feedback
-        self.probability = probability
+        self.score = score
+        self.a = a
+        self.b = b
+        self.negated = negated
+        self.probability = p_sigmoid(score, self.a, self.b)
+        if self.negated:
+            self.probability = 1-self.probability
+        self.name = name
 
     def tojson(self, threshold: float = 1) -> dict | None:
-        if self.probability > threshold:
+        if self.score > threshold:
             return None
         return {
             "type": "FeedBack",
             "feedback": self.feedback,
             "probability": round(self.probability, 2),
+            "name": self.name,
+            "score": self.score,
+            "negated": self.negated,
         }
 
     @staticmethod
@@ -38,7 +61,7 @@ class FeedBackCond:
         self.probability = 0
 
     def tojson(self, threshold: float = 1) -> dict | None:
-        if self.probability > threshold:
+        if self.score > threshold:
             return None
 
         a = self.feedbackA.tojson(threshold)
@@ -100,7 +123,7 @@ class FeedBackOrList(FeedBackListBase):
         super().__init__(items)
         p = 1
         for x in self.items:
-            p *= 1 - x.probability
+            p *= 1 - x.score
         self.probability = 1 - p
 
 
@@ -109,5 +132,5 @@ class FeedBackAndList(FeedBackListBase):
         super().__init__(items)
         p = 1
         for x in self.items:
-            p *= x.probability
+            p *= x.score
         self.probability = p

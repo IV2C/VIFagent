@@ -135,7 +135,7 @@ class OracleExpression:
 
 class OracleCondition(OracleExpression):
 
-    def __init__(self, feature: str):
+    def __init__(self, feature: str, a: float, b: float):
         self.feature = feature
 
     @abstractmethod
@@ -193,55 +193,37 @@ class OracleAndExpr(OracleBynaryExpr):
 
 class present(OracleCondition):
     def __init__(self, feature):
-        super().__init__(feature)
+        self.a = 0.3
+        self.b = 20
+        self.negated = False
+        super().__init__(feature, a=self.a, b=self.b)
 
     def __invert__(self):
-        return removed(self.feature)
+        self.negated = True
+        return self
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
     ):
         boxes = box_function(self.feature, custom_image)
-        boxes = [box for box in boxes if box!=None]
+        boxes = [box for box in boxes if box != None]
         if len(boxes) == 0:
-            probability = 0
+            score = 0
         else:
+            score = max([box.box_prob for box in boxes])
 
-            max_boxprob = max([box.box_prob for box in boxes])
-            max_boxprob = min(0.3, max_boxprob)
-            probability = max_boxprob / 0.3
+        if self.negated:
+            score = 1 - score
+            feeback_str = f"The feature {self.feature} is in the customized image, but should not be."
+        else:
+            feeback_str = f"The feature {self.feature} is not in the customized image."
 
         feeback = FeedBack(
-            f"The feature {self.feature} is not in the customized image.", probability
-        )
-
-        return feeback
-
-
-class removed(OracleCondition):
-    def __init__(self, feature):
-        super().__init__(feature)
-
-    def __invert__(self):
-        return present(self.feature)
-
-    def evaluate(
-        self, *, original_image, custom_image, segment_function, box_function, **kwargs
-    ):
-        boxes = box_function(self.feature, custom_image)
-        
-        boxes = [box for box in boxes if box!=None]
-        
-        if len(boxes) == 0:
-            probability = 1
-        else:
-            max_boxprob = max([box.box_prob for box in boxes])
-            max_boxprob = min(0.3, max_boxprob)
-            probability = 1 - (max_boxprob / 0.3)
-
-        feeback = FeedBack(
-            f"The feature {self.feature} is in the customized image, but should not be.",
-            probability,
+            feeback_str,
+            score=score,
+            name=self.__class__.__name__,
+            a=self.a,
+            b=self.b,
         )
 
         return feeback
@@ -346,17 +328,11 @@ class placement(OracleCondition):
             ),
         }
         self.negated = False
-        super().__init__(feature)
+        self.a = 0.5
+        self.b = 20
+        super().__init__(feature, a=self.a, b=self.b)
 
     def __invert__(self):
-        opposite = {
-            Direction.left: Direction.right,
-            Direction.right: Direction.left,
-            Direction.over: Direction.under,
-            Direction.under: Direction.over,
-        }
-
-        self.direction = opposite.get(self.direction, self.direction)
         self.negated = True
         return self
 
@@ -388,7 +364,10 @@ class placement(OracleCondition):
             for labelA, center_boxA in label_centers_boxA
             for labelB, center_boxB in label_centers_boxB
         ]
-        feedbacks = [FeedBack(feed, int(cond)) for cond, feed in conditions_feedbacks]
+        feedbacks = [
+            FeedBack(feed, int(cond), self.__class__.__name__, a=self.a, b=self.b,negated=self.negated)
+            for cond, feed in conditions_feedbacks
+        ]
 
         return (
             FeedBackAndList(feedbacks)
@@ -403,6 +382,8 @@ class position(OracleCondition):
         self.axis = axis
         self.ratio = ratio
         self.negated = False
+        self.a = 0.5
+        self.b=10
         super().__init__(feature)
 
     def __invert__(self):
