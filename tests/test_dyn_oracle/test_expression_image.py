@@ -1022,7 +1022,7 @@ class TestExpression(unittest.TestCase):
             segment_function=get_features,
         )
 
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.05)
         expected = None
         self.assertEqual(expected, feedback.tojson(0.1))
 
@@ -1073,7 +1073,7 @@ class TestExpression(unittest.TestCase):
             custom_image=self.custom_image,
             segment_function=get_features,
         )
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.05)
         expected = None
         self.assertEqual(expected, feedback.tojson(0.1))
 
@@ -1118,19 +1118,21 @@ class TestExpression(unittest.TestCase):
             segment_function=get_features,
         )
 
-        self.assertAlmostEqual(feedback.probability, 1 / 3)
         expected = {
             "type": "FeedBackAndList",
-            "probability": 0.33,
+            "probability": 0.44,
             "items": [
                 {
                     "type": "FeedBackAnd",
-                    "probability": 0.67,
+                    "probability": 0.88,
                     "feedbackA": None,
                     "feedbackB": {
                         "type": "FeedBack",
                         "feedback": "The triangleB was resized on y by a ratio of 1.6, but should have been by a ratio of 1.5",
-                        "probability": 0.67,
+                        "probability": 0.88,
+                        "score": 0.06666666666666672,
+                        "name": "size",
+                        "negated": False,
                     },
                 },
                 {
@@ -1140,12 +1142,16 @@ class TestExpression(unittest.TestCase):
                         "type": "FeedBack",
                         "feedback": "The triangleA was resized on x by a ratio of 1.1, but should have been by a ratio of 1",
                         "probability": 0.5,
+                        "score": 0.10000000000000009,
+                        "name": "size",
+                        "negated": False,
                     },
                     "feedbackB": None,
                 },
             ],
         }
         self.assertEqual(expected, feedback.tojson(0.9))
+        self.assertAlmostEqual(feedback.probability, 0.4382233522749702)
 
     @parameterized.expand(
         [
@@ -1158,9 +1164,9 @@ class TestExpression(unittest.TestCase):
                 ],
                 0.25,
                 0.0,
-                0.12,
+                0.0,
                 0.95,
-                0.11
+                0.0,
             ),
             (
                 (3, 3),
@@ -1170,14 +1176,26 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on y by a ratio of 2.0, but should have been by a ratio of 3",
                     "The triangle was resized on x by a ratio of 2.0, but should have been by a ratio of 3",
                 ],
-                1/3,
-                1/3, 0.02,
-                0.02,
-                0.0
+                1 / 3,
+                1 / 3,
+                0.0,
+                0.0,
+                0.0,
             ),
         ]
     )
-    def test_resize_invalid(self, ratio, box_ori, box_cust, expected_feedback, score0,score1,prob0,prob1,prob):
+    def test_resize_invalid(
+        self,
+        ratio,
+        box_ori,
+        box_cust,
+        expected_feedback,
+        score0,
+        score1,
+        prob0,
+        prob1,
+        prob,
+    ):
         original_features: list[BoundingBox] = [
             BoundingBox(*box_ori, "triangle"),
         ]
@@ -1203,7 +1221,7 @@ class TestExpression(unittest.TestCase):
             segment_function=get_features,
         )
 
-        self.assertAlmostEqual(feedback.probability, prob,delta=0.05)
+        self.assertAlmostEqual(feedback.probability, prob, delta=0.05)
         expected = {
             "type": "FeedBackAndList",
             "probability": prob,
@@ -1279,7 +1297,7 @@ class TestExpression(unittest.TestCase):
         )
         expected = None
         self.assertEqual(expected, feedback.tojson(0.9))
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.05)
 
     @parameterized.expand(
         [
@@ -1291,7 +1309,8 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on x by a ratio of 1.0, which is too close to 0.9",
                     "The triangle was resized on y by a ratio of 1.5, which is too close to 1.6",
                 ],
-                (0.56, 0.31, 0.69),
+                (0.66, 0.1, 0.69),
+                (0.11111111111111108,0.06250000000000006)
             ),
             (
                 (2.1, 2.1),
@@ -1301,12 +1320,13 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on x by a ratio of 2.0, which is too close to 2.1",
                     "The triangle was resized on y by a ratio of 2.0, which is too close to 2.1",
                 ],
-                (0.24, 0.24, 0.42),
+                (0.04, 0.04, 0.08),
+                (0.04761904761904766,0.04761904761904766)
             ),
         ]
     )
     def test_resize_negated_invalid(
-        self, ratio, box_ori, box_cust, expected_feedback, scores
+        self, ratio, box_ori, box_cust, expected_feedback, scores,score
     ):
         original_features: list[BoundingBox] = [
             BoundingBox(*box_ori, "triangle"),
@@ -1343,11 +1363,17 @@ class TestExpression(unittest.TestCase):
                         "type": "FeedBack",
                         "feedback": expected_feedback[0],
                         "probability": scores[0],
+                        "score": score[0],
+                        "name": "size",
+                        "negated": True,
                     },
                     "feedbackB": {
                         "type": "FeedBack",
                         "feedback": expected_feedback[1],
                         "probability": scores[1],
+                        "score": score[1],
+                        "name": "size",
+                        "negated": True,
                     },
                 }
             ],

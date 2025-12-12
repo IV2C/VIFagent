@@ -683,8 +683,8 @@ class size(OracleCondition):
     def __init__(self, feature: str, ratio: tuple[float, float]):
         self.ratio = ratio
         self.negated = False
-        self.a = 0.15
-        self.b = -20
+        self.a = 0.1
+        self.b = -60
         super().__init__(feature,self.a,self.b)
 
     def __invert__(self):
