@@ -1310,7 +1310,7 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on y by a ratio of 1.5, which is too close to 1.6",
                 ],
                 (0.66, 0.1, 0.69),
-                (0.11111111111111108,0.06250000000000006)
+                (0.11111111111111108, 0.06250000000000006),
             ),
             (
                 (2.1, 2.1),
@@ -1321,12 +1321,12 @@ class TestExpression(unittest.TestCase):
                     "The triangle was resized on y by a ratio of 2.0, which is too close to 2.1",
                 ],
                 (0.04, 0.04, 0.08),
-                (0.04761904761904766,0.04761904761904766)
+                (0.04761904761904766, 0.04761904761904766),
             ),
         ]
     )
     def test_resize_negated_invalid(
-        self, ratio, box_ori, box_cust, expected_feedback, scores,score
+        self, ratio, box_ori, box_cust, expected_feedback, scores, score
     ):
         original_features: list[BoundingBox] = [
             BoundingBox(*box_ori, "triangle"),
@@ -1414,7 +1414,7 @@ class TestExpression(unittest.TestCase):
         )
         expected = None
         self.assertEqual(expected, feedback.tojson(0.9))
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.05)
 
     @parameterized.expand(
         [
@@ -1448,7 +1448,7 @@ class TestExpression(unittest.TestCase):
         )
         expected = None
         self.assertEqual(expected, feedback.tojson(0.9))
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.05)
 
     @parameterized.expand(
         [
@@ -1489,20 +1489,23 @@ class TestExpression(unittest.TestCase):
                     "type": "FeedBack",
                     "feedback": "The triangleB should be in the shape of a triangle, but looks more like a rectangle.",
                     "probability": 0.0,
+                    "score": 10,
+                    "name": "shape",
+                    "negated": False,
                 }
             ],
         }
         self.assertEqual(expected, feedback.tojson(0.9))
-        self.assertAlmostEqual(feedback.probability, 0.0)
+        self.assertAlmostEqual(feedback.probability, 0.0, delta=0.05)
 
     @parameterized.expand(
         [
-            ("triangle", "square", "triangle"),
-            ("square", "circle", "rectangle"),
-            ("circle", "triangle", "circle"),
+            ("triangle", "square", "triangle",6),
+            ("square", "circle", "rectangle",6),
+            ("circle", "triangle", "circle",18),
         ]
     )
-    def test_shape_invalid(self, feature, shape_expected, shapes_found):
+    def test_shape_invalid(self, feature, shape_expected, shapes_found,score):
         load_mask = lambda shape_w: pickle.loads(
             open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
         )
@@ -1540,11 +1543,14 @@ class TestExpression(unittest.TestCase):
                     "type": "FeedBack",
                     "feedback": f"The {feature} should be in the shape of a {shape_expected}, but looks more like a {shapes_found}.",
                     "probability": 0.0,
+                    "score": score,
+                    "name": "shape",
+                    "negated": False,
                 }
             ],
         }
         self.assertEqual(expected, feedback.tojson(0.9))
-        self.assertAlmostEqual(feedback.probability, 0.0)
+        self.assertAlmostEqual(feedback.probability, 0.0, delta=0.05)
 
     @parameterized.expand(
         [
@@ -1584,16 +1590,16 @@ class TestExpression(unittest.TestCase):
         )
         expected = None
         self.assertEqual(expected, feedback.tojson(0.9))
-        self.assertAlmostEqual(feedback.probability, 1.0)
+        self.assertAlmostEqual(feedback.probability, 1.0, delta=0.05)
 
     @parameterized.expand(
         [
-            ("triangle", "triangle"),
-            ("square", "square"),
-            ("circle", "circle"),
+            ("triangle", "triangle",0,0.0),
+            ("square", "square",1,0.02),
+            ("circle", "circle",0,0.0),
         ]
     )
-    def test_shape_negated_invalid(self, feature, shape_expected):
+    def test_shape_negated_invalid(self, feature, shape_expected,score,prob):
         load_mask = lambda shape_w: pickle.loads(
             open(f"tests/resources/seg/simple_masks/{shape_w}.pickle", "rb").read()
         )
@@ -1625,17 +1631,20 @@ class TestExpression(unittest.TestCase):
 
         expected = {
             "type": "FeedBackOrList",
-            "probability": 0.0,
+            "probability": prob,
             "items": [
                 {
                     "type": "FeedBack",
                     "feedback": f"The {feature} should not be in the shape of a {shape_expected}, but still looks like a {shape_expected}.",
-                    "probability": 0.0,
+                    "probability": prob,
+                    "score": score,
+                    "name": "shape",
+                    "negated": True,
                 }
             ],
         }
         self.assertEqual(expected, feedback.tojson(0.9))
-        self.assertAlmostEqual(feedback.probability, 0.0)
+        self.assertAlmostEqual(feedback.probability, 0.0,delta=0.05)
 
     # WITHIN
 

@@ -775,7 +775,9 @@ class shape(OracleCondition):
     def __init__(self, feature: str, shape: str):
         self.negated = False
         self.req_shape = shape
-        super().__init__(feature)
+        self.a = 3
+        self.b = -2
+        super().__init__(feature,self.a,self.b)
 
     def __invert__(self):
         self.negated = True
@@ -800,18 +802,14 @@ class shape(OracleCondition):
 
         index = min(np.where(ranked_shapes == self.req_shape)[0])
 
-        if index < 2:
-            score = 1.0
-        else:
-            score = 1 - min((index - 2) / accepted_shape_ratio, 1)
+        score = index
 
         feedback = f"The {label} should be in the shape of a {self.req_shape}, but looks more like a {ranked_shapes[0]}."
 
         if self.negated:
-            score = 1 - score
             feedback = f"The {label} should not be in the shape of a {self.req_shape}, but still looks like a {self.req_shape}."
 
-        return FeedBack(feedback, score)
+        return FeedBack(feedback, score,self.__class__.__name__,a=self.a,b=self.b,negated=self.negated)
 
     def evaluate(
         self, *, original_image, custom_image, segment_function, box_function, **kwargs
